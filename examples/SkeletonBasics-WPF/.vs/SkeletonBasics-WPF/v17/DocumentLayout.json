@@ -1,0 +1,90 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\gavin\\Fun-Mirror\\examples\\SkeletonBasics-WPF\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{8121846D-923E-4BB0-8647-30DA753D156E}|SkeletonBasics-WPF.csproj|c:\\users\\gavin\\fun-mirror\\examples\\skeletonbasics-wpf\\app.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
+      "RelativeMoniker": "D:0:0:{8121846D-923E-4BB0-8647-30DA753D156E}|SkeletonBasics-WPF.csproj|solutionrelative:app.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{8121846D-923E-4BB0-8647-30DA753D156E}|SkeletonBasics-WPF.csproj|c:\\users\\gavin\\fun-mirror\\examples\\skeletonbasics-wpf\\properties\\assemblyinfo.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{8121846D-923E-4BB0-8647-30DA753D156E}|SkeletonBasics-WPF.csproj|solutionrelative:properties\\assemblyinfo.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{8121846D-923E-4BB0-8647-30DA753D156E}|SkeletonBasics-WPF.csproj|c:\\users\\gavin\\fun-mirror\\examples\\skeletonbasics-wpf\\app.config||{FA3CD31E-987B-443A-9B81-186104E8DAC1}",
+      "RelativeMoniker": "D:0:0:{8121846D-923E-4BB0-8647-30DA753D156E}|SkeletonBasics-WPF.csproj|solutionrelative:app.config||{FA3CD31E-987B-443A-9B81-186104E8DAC1}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{8121846D-923E-4BB0-8647-30DA753D156E}|SkeletonBasics-WPF.csproj|c:\\users\\gavin\\fun-mirror\\examples\\skeletonbasics-wpf\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
+      "RelativeMoniker": "D:0:0:{8121846D-923E-4BB0-8647-30DA753D156E}|SkeletonBasics-WPF.csproj|solutionrelative:mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 3,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{269a02dc-6af8-11d3-bdc4-00c04f688e50}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "AssemblyInfo.cs",
+              "DocumentMoniker": "C:\\Users\\gavin\\Fun-Mirror\\examples\\SkeletonBasics-WPF\\Properties\\AssemblyInfo.cs",
+              "RelativeDocumentMoniker": "Properties\\AssemblyInfo.cs",
+              "ToolTip": "C:\\Users\\gavin\\Fun-Mirror\\examples\\SkeletonBasics-WPF\\Properties\\AssemblyInfo.cs",
+              "RelativeToolTip": "Properties\\AssemblyInfo.cs",
+              "ViewState": "AgIAAAkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-16T22:59:40.438Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "app.config",
+              "DocumentMoniker": "C:\\Users\\gavin\\Fun-Mirror\\examples\\SkeletonBasics-WPF\\app.config",
+              "RelativeDocumentMoniker": "app.config",
+              "ToolTip": "C:\\Users\\gavin\\Fun-Mirror\\examples\\SkeletonBasics-WPF\\app.config",
+              "RelativeToolTip": "app.config",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000601|",
+              "WhenOpened": "2025-11-16T22:59:36.671Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "App.xaml",
+              "DocumentMoniker": "C:\\Users\\gavin\\Fun-Mirror\\examples\\SkeletonBasics-WPF\\App.xaml",
+              "RelativeDocumentMoniker": "App.xaml",
+              "ToolTip": "C:\\Users\\gavin\\Fun-Mirror\\examples\\SkeletonBasics-WPF\\App.xaml*",
+              "RelativeToolTip": "App.xaml*",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
+              "WhenOpened": "2025-11-16T22:59:34.107Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "MainWindow.xaml",
+              "DocumentMoniker": "C:\\Users\\gavin\\Fun-Mirror\\examples\\SkeletonBasics-WPF\\MainWindow.xaml",
+              "RelativeDocumentMoniker": "MainWindow.xaml",
+              "ToolTip": "C:\\Users\\gavin\\Fun-Mirror\\examples\\SkeletonBasics-WPF\\MainWindow.xaml",
+              "RelativeToolTip": "MainWindow.xaml",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
+              "WhenOpened": "2025-11-16T22:59:25.058Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

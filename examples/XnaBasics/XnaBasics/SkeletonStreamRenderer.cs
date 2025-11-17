@@ -35,14 +35,6 @@ namespace Microsoft.Samples.Kinect.XnaBasics
         private static Skeleton[] skeletonData;
 
         /// <summary>
-        /// Exposes the skeleton buffer so helpers (like outline rendering) can reuse it.
-        /// </summary>
-        internal static Skeleton[] CurrentSkeletons
-        {
-            get { return skeletonData; }
-        }
-
-        /// <summary>
         /// This flag ensures only request a frame once per update call
         /// across the entire application.
         /// </summary>

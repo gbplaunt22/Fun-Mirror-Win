@@ -21,11 +21,6 @@ namespace Microsoft.Samples.Kinect.XnaBasics
         private readonly SkeletonStreamRenderer skeletonStream;
 
         /// <summary>
-        /// Helper that extracts and draws player outlines from the depth map.
-        /// </summary>
-        private readonly PlayerOutlineRenderer outlineRenderer;
-
-        /// <summary>
         /// The back buffer where the depth frame is scaled as requested by the Size.
         /// </summary>
         private RenderTarget2D backBuffer;
@@ -39,16 +34,6 @@ namespace Microsoft.Samples.Kinect.XnaBasics
         /// The depth frame as a texture.
         /// </summary>
         private Texture2D depthTexture;
-
-        /// <summary>
-        /// Cached width/height of the most recent depth frame.
-        /// </summary>
-        private int depthWidth;
-
-        /// <summary>
-        /// Cached width/height of the most recent depth frame.
-        /// </summary>
-        private int depthHeight;
         
         /// <summary>
         /// This Xna effect is used to convert the depth to RGB color information.
@@ -68,7 +53,6 @@ namespace Microsoft.Samples.Kinect.XnaBasics
             : base(game)
         {
             this.skeletonStream = new SkeletonStreamRenderer(game, this.SkeletonToDepthMap);
-            this.outlineRenderer = new PlayerOutlineRenderer(game.GraphicsDevice, this.SkeletonToDepthMap);
             this.Size = new Vector2(160, 120);
         }
 
@@ -120,22 +104,11 @@ namespace Microsoft.Samples.Kinect.XnaBasics
                 }
 
                 frame.CopyPixelDataTo(this.depthData);
-                this.depthWidth = frame.Width;
-                this.depthHeight = frame.Height;
                 this.needToRedrawBackBuffer = true;
             }
 
             // Update the skeleton renderer
             this.skeletonStream.Update(gameTime);
-
-            if (this.depthData != null)
-            {
-                this.outlineRenderer.Update(
-                    this.depthData,
-                    this.depthWidth,
-                    this.depthHeight,
-                    SkeletonStreamRenderer.CurrentSkeletons);
-            }
         }
 
         /// <summary>
@@ -161,11 +134,6 @@ namespace Microsoft.Samples.Kinect.XnaBasics
                 // Draw the depth image
                 this.SharedSpriteBatch.Begin(SpriteSortMode.Immediate, null, null, null, null, this.kinectDepthVisualizer);
                 this.SharedSpriteBatch.Draw(this.depthTexture, Vector2.Zero, Color.White);
-                this.SharedSpriteBatch.End();
-
-                // Draw the player outlines on top of the depth image
-                this.SharedSpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend);
-                this.outlineRenderer.Draw(this.SharedSpriteBatch);
                 this.SharedSpriteBatch.End();
 
                 // Draw the skeleton

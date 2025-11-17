@@ -2,10 +2,12 @@ package mirror;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.image.BufferedImage;
 
 public class HeadTrackViz extends JPanel {
 
-	private final HeadDataSource headSource;
+        private final HeadDataSource headSource;
+        private final SilhouetteRenderer silhouetteRenderer = new SilhouetteRenderer();
 
 	// smoothed values (for EMA)
 	private boolean haveSmooth = false;
@@ -74,11 +76,16 @@ public class HeadTrackViz extends JPanel {
 
                 SilhouetteFrame silhouette = headSource.getSilhouetteFrame();
                 if (silhouette != null && !silhouette.isEmpty()) {
-                        Graphics2D g2 = (Graphics2D) g.create();
-                        try {
-                                drawSilhouette(g2, silhouette, panelW, panelH);
-                        } finally {
-                                g2.dispose();
+                        BufferedImage silhouetteImage = silhouetteRenderer.render(silhouette);
+                        if (silhouetteImage != null) {
+                                Graphics2D g2 = (Graphics2D) g.create();
+                                try {
+                                        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                                                        RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                                        g2.drawImage(silhouetteImage, 0, 0, panelW, panelH, null);
+                                } finally {
+                                        g2.dispose();
+                                }
                         }
                 }
 
@@ -139,35 +146,6 @@ public class HeadTrackViz extends JPanel {
 
                 g2.setColor(Color.WHITE);
                 g2.drawString(String.format("Z=%.2f m", z), 10, 20);
-        }
-
-        private static final Color[] PLAYER_COLORS = new Color[] {
-                        new Color(0, 0, 0, 0),
-                        new Color(220, 20, 60),
-                        new Color(65, 105, 225),
-                        new Color(34, 139, 34),
-                        new Color(255, 165, 0),
-                        new Color(148, 0, 211),
-                        new Color(255, 215, 0)
-        };
-
-        private void drawSilhouette(Graphics2D g2, SilhouetteFrame frame, int panelW, int panelH) {
-                frame.forEachRun((y, startX, length, playerIndex) -> {
-                        if (playerIndex <= 0 || playerIndex >= PLAYER_COLORS.length) {
-                                return;
-                        }
-
-                        g2.setColor(PLAYER_COLORS[playerIndex]);
-
-                        int start = mapXToPanel(startX, frame.getWidth(), panelW);
-                        int end = mapXToPanel(startX + length, frame.getWidth(), panelW);
-                        int top = mapYToPanel(y, frame.getHeight(), panelH);
-                        int bottom = mapYToPanel(y + 1, frame.getHeight(), panelH);
-
-                        int rectW = Math.max(1, end - start);
-                        int rectH = Math.max(1, bottom - top);
-                        g2.fillRect(start, top, rectW, rectH);
-                });
         }
 
         // Outline rendering intentionally removed so that the silhouette fill matches the Kinect SDK sample.

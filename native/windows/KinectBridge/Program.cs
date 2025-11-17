@@ -15,13 +15,16 @@ namespace KinectBridge
         private const int MaxOutlinePoints = 320;
         private static readonly int[] NeighborX = { 1, 1, 0, -1, -1, -1, 0, 1 };
         private static readonly int[] NeighborY = { 0, 1, 1, 1, 0, -1, -1, -1 };
+        private const int MaxSilhouetteRuns = 8192;
 
         private static DepthImagePixel[] depthPixels;
         private static byte[] playerMask;
         private static readonly List<PixelPoint> OutlineScratch = new List<PixelPoint>(2048);
+        private static readonly List<SilhouetteRun> SilhouetteScratch = new List<SilhouetteRun>(MaxSilhouetteRuns);
 
         private static volatile bool hasTrackedSkeleton = false;
         private static volatile bool outlineActive = false;
+        private static volatile bool silhouetteActive = false;
 
         private struct PixelPoint
         {
@@ -41,6 +44,22 @@ namespace KinectBridge
                 X = x;
                 Y = y;
                 Depth = depth;
+            }
+        }
+
+        private struct SilhouetteRun
+        {
+            public readonly int Y;
+            public readonly int X;
+            public readonly int Length;
+            public readonly byte PlayerIndex;
+
+            public SilhouetteRun(int y, int x, int length, byte playerIndex)
+            {
+                Y = y;
+                X = x;
+                Length = length;
+                PlayerIndex = playerIndex;
             }
         }
 
@@ -168,12 +187,14 @@ namespace KinectBridge
                 if (!hasTrackedSkeleton)
                 {
                     ClearOutline();
+                    ClearSilhouette();
                     return;
                 }
 
                 frame.CopyDepthImagePixelDataTo(depthPixels);
                 BuildPlayerMask(depthPixels, playerMask);
 
+                PublishSilhouette(playerMask, frame.Width, frame.Height);
                 int outlineCount = ExtractOutline(playerMask, depthPixels, frame.Width, frame.Height, OutlineScratch);
                 if (outlineCount > 0)
                 {
@@ -190,7 +211,7 @@ namespace KinectBridge
         {
             for (int i = 0; i < depthData.Length; i++)
             {
-                mask[i] = depthData[i].PlayerIndex > 0 ? (byte)1 : (byte)0;
+                mask[i] = depthData[i].PlayerIndex;
             }
         }
 
@@ -402,6 +423,95 @@ namespace KinectBridge
                 outlineActive = true;
                 Console.WriteLine(builder.ToString());
                 Console.Out.Flush();
+            }
+        }
+
+        private static void PublishSilhouette(byte[] mask, int width, int height)
+        {
+            if (mask == null)
+            {
+                ClearSilhouette();
+                return;
+            }
+
+            SilhouetteScratch.Clear();
+            for (int y = 0; y < height && SilhouetteScratch.Count < MaxSilhouetteRuns; y++)
+            {
+                int row = y * width;
+                int x = 0;
+                while (x < width && SilhouetteScratch.Count < MaxSilhouetteRuns)
+                {
+                    while (x < width && mask[row + x] == 0)
+                    {
+                        x++;
+                    }
+
+                    if (x >= width)
+                    {
+                        break;
+                    }
+
+                    int start = x;
+                    byte player = mask[row + x];
+                    while (x < width && mask[row + x] == player)
+                    {
+                        x++;
+                    }
+
+                    int length = x - start;
+                    if (length > 0 && player != 0)
+                    {
+                        SilhouetteScratch.Add(new SilhouetteRun(y, start, length, player));
+                    }
+                }
+            }
+
+            if (SilhouetteScratch.Count == 0)
+            {
+                ClearSilhouette();
+                return;
+            }
+
+            var builder = new StringBuilder(SilhouetteScratch.Count * 12 + 32);
+            builder.Append("SILHOUETTE ");
+            builder.Append(width);
+            builder.Append(' ');
+            builder.Append(height);
+            builder.Append(' ');
+            builder.Append(SilhouetteScratch.Count);
+
+            foreach (var run in SilhouetteScratch)
+            {
+                builder.Append(' ');
+                builder.Append(run.Y);
+                builder.Append(' ');
+                builder.Append(run.X);
+                builder.Append(' ');
+                builder.Append(run.Length);
+                builder.Append(' ');
+                builder.Append(run.PlayerIndex);
+            }
+
+            lock (ConsoleLock)
+            {
+                silhouetteActive = true;
+                Console.WriteLine(builder.ToString());
+                Console.Out.Flush();
+            }
+        }
+
+        private static void ClearSilhouette()
+        {
+            if (!silhouetteActive)
+            {
+                return;
+            }
+
+            lock (ConsoleLock)
+            {
+                Console.WriteLine("SILHOUETTE 0 0 0");
+                Console.Out.Flush();
+                silhouetteActive = false;
             }
         }
 

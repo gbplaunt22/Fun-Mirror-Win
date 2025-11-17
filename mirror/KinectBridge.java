@@ -16,6 +16,7 @@ public class KinectBridge implements HeadDataSource {
     private volatile double headZ = -1.0;
     private volatile int[] outlinePoints = new int[0];
     private volatile int outlinePointStride = 0;
+    private volatile SilhouetteFrame silhouetteFrame = SilhouetteFrame.empty();
 
     public void start() throws IOException {
         if (running)
@@ -55,6 +56,8 @@ public class KinectBridge implements HeadDataSource {
                     }
                 } else if (line.startsWith("OUTLINE")) {
                     parseOutline(line);
+                } else if (line.startsWith("SILHOUETTE")) {
+                    parseSilhouette(line);
                 }
                 // you can later handle other messages here
             }
@@ -95,6 +98,10 @@ public class KinectBridge implements HeadDataSource {
         return outlinePointStride;
     }
 
+    public SilhouetteFrame getSilhouetteFrame() {
+        return silhouetteFrame;
+    }
+
     private void parseOutline(String line) {
         String[] parts = line.split("\\s+");
         if (parts.length < 2)
@@ -125,6 +132,37 @@ public class KinectBridge implements HeadDataSource {
             }
             outlinePoints = next;
             outlinePointStride = stride;
+        } catch (NumberFormatException ignored) {
+        }
+    }
+
+    private void parseSilhouette(String line) {
+        String[] parts = line.split("\\s+");
+        if (parts.length < 4) {
+            return;
+        }
+
+        try {
+            int width = Integer.parseInt(parts[1]);
+            int height = Integer.parseInt(parts[2]);
+            int runCount = Integer.parseInt(parts[3]);
+
+            if (width <= 0 || height <= 0 || runCount <= 0) {
+                silhouetteFrame = SilhouetteFrame.empty();
+                return;
+            }
+
+            int expectedValues = runCount * 4;
+            if (parts.length < 4 + expectedValues) {
+                return;
+            }
+
+            int[] runs = new int[expectedValues];
+            for (int i = 0; i < expectedValues; i++) {
+                runs[i] = Integer.parseInt(parts[4 + i]);
+            }
+
+            silhouetteFrame = new SilhouetteFrame(width, height, runs);
         } catch (NumberFormatException ignored) {
         }
     }

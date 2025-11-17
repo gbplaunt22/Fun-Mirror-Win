@@ -13,6 +13,8 @@ namespace KinectBridge
         private const DepthImageFormat DepthFormat = DepthImageFormat.Resolution640x480Fps30;
         private const int OutlineStride = 3;
         private const int MaxOutlinePoints = 320;
+        private static readonly int[] NeighborX = { 1, 1, 0, -1, -1, -1, 0, 1 };
+        private static readonly int[] NeighborY = { 0, 1, 1, 1, 0, -1, -1, -1 };
 
         private static DepthImagePixel[] depthPixels;
         private static byte[] playerMask;
@@ -25,11 +27,20 @@ namespace KinectBridge
         {
             public readonly int X;
             public readonly int Y;
+            public readonly int Depth;
 
             public PixelPoint(int x, int y)
             {
                 X = x;
                 Y = y;
+                Depth = 0;
+            }
+
+            public PixelPoint(int x, int y, int depth)
+            {
+                X = x;
+                Y = y;
+                Depth = depth;
             }
         }
 
@@ -163,7 +174,7 @@ namespace KinectBridge
                 frame.CopyDepthImagePixelDataTo(depthPixels);
                 BuildPlayerMask(depthPixels, playerMask);
 
-                int outlineCount = ExtractOutline(playerMask, frame.Width, frame.Height, OutlineScratch);
+                int outlineCount = ExtractOutline(playerMask, depthPixels, frame.Width, frame.Height, OutlineScratch);
                 if (outlineCount > 0)
                 {
                     PublishOutline(OutlineScratch);
@@ -183,49 +194,163 @@ namespace KinectBridge
             }
         }
 
-        private static int ExtractOutline(byte[] mask, int width, int height, List<PixelPoint> outline)
+        private static int ExtractOutline(byte[] mask, DepthImagePixel[] depth, int width, int height, List<PixelPoint> outline)
         {
             outline.Clear();
 
-            for (int y = 1; y < height - 1; y += OutlineStride)
+            if (!TryFindBoundaryPixel(mask, width, height, out PixelPoint start))
             {
-                for (int x = 1; x < width - 1; x += OutlineStride)
+                return 0;
+            }
+
+            TraceContour(mask, depth, width, height, start, outline);
+            return outline.Count;
+        }
+
+        private static bool TryFindBoundaryPixel(byte[] mask, int width, int height, out PixelPoint start)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                int row = y * width;
+                for (int x = 0; x < width; x++)
                 {
-                    int idx = y * width + x;
-                    if (mask[idx] == 0)
+                    int idx = row + x;
+                    if (mask[idx] != 0 && IsBoundaryPixel(mask, width, height, x, y))
                     {
-                        continue;
-                    }
-
-                    bool isEdge = false;
-                    for (int ny = -1; ny <= 1 && !isEdge; ny++)
-                    {
-                        int sampleY = y + ny;
-                        for (int nx = -1; nx <= 1; nx++)
-                        {
-                            if (nx == 0 && ny == 0)
-                            {
-                                continue;
-                            }
-
-                            int sampleX = x + nx;
-                            int sampleIdx = sampleY * width + sampleX;
-                            if (mask[sampleIdx] == 0)
-                            {
-                                isEdge = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (isEdge)
-                    {
-                        outline.Add(new PixelPoint(x, y));
+                        start = new PixelPoint(x, y);
+                        return true;
                     }
                 }
             }
 
-            return outline.Count;
+            start = default(PixelPoint);
+            return false;
+        }
+
+        private static bool IsBoundaryPixel(byte[] mask, int width, int height, int x, int y)
+        {
+            int idx = y * width + x;
+            if (mask[idx] == 0)
+            {
+                return false;
+            }
+
+            for (int ny = -1; ny <= 1; ny++)
+            {
+                int sampleY = y + ny;
+                if (sampleY < 0 || sampleY >= height)
+                {
+                    return true;
+                }
+
+                for (int nx = -1; nx <= 1; nx++)
+                {
+                    if (nx == 0 && ny == 0)
+                    {
+                        continue;
+                    }
+
+                    int sampleX = x + nx;
+                    if (sampleX < 0 || sampleX >= width)
+                    {
+                        return true;
+                    }
+
+                    int sampleIdx = sampleY * width + sampleX;
+                    if (mask[sampleIdx] == 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static void TraceContour(byte[] mask, DepthImagePixel[] depth, int width, int height, PixelPoint start, List<PixelPoint> outline)
+        {
+            outline.Add(new PixelPoint(start.X, start.Y, SampleDepth(depth, width, start.X, start.Y)));
+
+            PixelPoint current = start;
+            int backtrackDir = 4; // pretend we entered from the west
+            int steps = 0;
+            int decimateCounter = 0;
+            int maxSteps = width * height * 4;
+
+            while (steps < maxSteps)
+            {
+                if (!TryStep(mask, width, height, current, backtrackDir, out PixelPoint next, out int nextBacktrack))
+                {
+                    break;
+                }
+
+                current = next;
+                backtrackDir = nextBacktrack;
+                steps++;
+
+                if (current.X == start.X && current.Y == start.Y)
+                {
+                    break;
+                }
+
+                decimateCounter++;
+                if (decimateCounter >= OutlineStride)
+                {
+                    outline.Add(new PixelPoint(current.X, current.Y, SampleDepth(depth, width, current.X, current.Y)));
+                    decimateCounter = 0;
+
+                    if (outline.Count >= MaxOutlinePoints)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
+        private static int SampleDepth(DepthImagePixel[] depth, int width, int x, int y)
+        {
+            int idx = y * width + x;
+            if (idx < 0 || idx >= depth.Length)
+            {
+                return 0;
+            }
+
+            return depth[idx].Depth;
+        }
+
+        private static bool TryStep(byte[] mask, int width, int height, PixelPoint current, int backtrackDir, out PixelPoint next, out int nextBacktrack)
+        {
+            // Moore-neighbor tracing searches starting two steps clockwise from
+            // the direction we entered the current pixel (i.e., hugging the
+            // contour on the right-hand side). Using +6 (two steps
+            // counter-clockwise) makes the tracer immediately step back toward
+            // the previous pixel, producing duplicated points and a wobbling
+            // outline. Rotate the starting direction clockwise instead.
+            int startDir = (backtrackDir + 2) & 7;
+            for (int i = 0; i < 8; i++)
+            {
+                int dir = (startDir + i) & 7;
+                int nx = current.X + NeighborX[dir];
+                int ny = current.Y + NeighborY[dir];
+                if (nx < 0 || ny < 0 || nx >= width || ny >= height)
+                {
+                    continue;
+                }
+
+                int idx = ny * width + nx;
+                if (mask[idx] == 0)
+                {
+                    continue;
+                }
+
+                next = new PixelPoint(nx, ny);
+                nextBacktrack = (dir + 4) & 7;
+                return true;
+            }
+
+            next = current;
+            nextBacktrack = backtrackDir;
+            return false;
         }
 
         private static void PublishOutline(IList<PixelPoint> points)
@@ -242,7 +367,7 @@ namespace KinectBridge
                 count = MaxOutlinePoints;
             }
 
-            var builder = new StringBuilder(count * 6 + 16);
+            var builder = new StringBuilder(count * 9 + 16);
             builder.Append("OUTLINE ");
             builder.Append(count);
 
@@ -260,6 +385,8 @@ namespace KinectBridge
                 builder.Append(pt.X);
                 builder.Append(' ');
                 builder.Append(pt.Y);
+                builder.Append(' ');
+                builder.Append(pt.Depth);
             }
 
             lock (ConsoleLock)

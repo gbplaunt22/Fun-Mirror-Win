@@ -75,11 +75,12 @@ public class HeadTrackViz extends JPanel {
 		int drawRawX = mapXToPanel(rawX, panelW);
 		int drawRawY = mapYToPanel(rawY, panelH);
 
-                int[] outline = headSource.getOutlinePoints();
-                if (outline != null && outline.length >= 6) {
+		int[] outline = headSource.getOutlinePoints();
+		int outlineStride = headSource.getOutlinePointStride();
+		if (outline != null && outlineStride >= 2 && outline.length >= outlineStride * 2) {
 			Graphics2D g2 = (Graphics2D) g.create();
 			try {
-				drawOutline(g2, outline, panelW, panelH);
+				drawOutline(g2, outline, outlineStride, panelW, panelH);
 			} finally {
 				g2.dispose();
 			}
@@ -142,65 +143,65 @@ public class HeadTrackViz extends JPanel {
         private static final int DISTANCE_BREAK_PX = 45;
         private static final int CLOSE_GAP_PX = 16;
 
-        private void drawOutline(Graphics2D g2, int[] outline, int panelW, int panelH) {
-                if (outline.length < 6)
-                        return;
+	private void drawOutline(Graphics2D g2, int[] outline, int stride, int panelW, int panelH) {
+		if (outline.length < stride * 2)
+			return;
 
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-                List<Path2D> segments = new ArrayList<>();
-                Path2D currentPath = null;
-                int segmentStartX = Integer.MIN_VALUE;
-                int segmentStartY = Integer.MIN_VALUE;
-                int lastX = Integer.MIN_VALUE;
-                int lastY = Integer.MIN_VALUE;
-                int lastDepth = Integer.MIN_VALUE;
+		boolean hasDepth = stride >= 3;
+		List<Path2D> segments = new ArrayList<>();
+		Path2D currentPath = null;
+		int segmentStartX = Integer.MIN_VALUE;
+		int segmentStartY = Integer.MIN_VALUE;
+		int lastX = Integer.MIN_VALUE;
+		int lastY = Integer.MIN_VALUE;
+		int lastDepth = Integer.MIN_VALUE;
 
-                for (int i = 0; i <= outline.length - 3; i += 3) {
-                        int kinectX = outline[i];
-                        int kinectY = outline[i + 1];
-                        int depthMm = outline[i + 2];
+		for (int i = 0; i <= outline.length - stride; i += stride) {
+			int kinectX = outline[i];
+			int kinectY = outline[i + 1];
+			int depthMm = hasDepth ? outline[i + 2] : 0;
 
-                        int panelX = mapXToPanel(kinectX, panelW);
-                        int panelY = mapYToPanel(kinectY, panelH);
+			int panelX = mapXToPanel(kinectX, panelW);
+			int panelY = mapYToPanel(kinectY, panelH);
 
-                        if (currentPath == null) {
-                                currentPath = new Path2D.Double();
-                                currentPath.moveTo(panelX, panelY);
-                                segmentStartX = panelX;
-                                segmentStartY = panelY;
-                        } else {
-                                boolean breakSegment = shouldBreakSegment(lastX, lastY, lastDepth, panelX, panelY, depthMm);
-                                if (breakSegment) {
-                                        finalizeSegment(segments, currentPath, segmentStartX, segmentStartY, lastX, lastY);
-                                        currentPath = new Path2D.Double();
-                                        currentPath.moveTo(panelX, panelY);
-                                        segmentStartX = panelX;
-                                        segmentStartY = panelY;
-                                } else if (panelX != lastX || panelY != lastY) {
-                                        currentPath.lineTo(panelX, panelY);
-                                }
-                        }
+			if (currentPath == null) {
+				currentPath = new Path2D.Double();
+				currentPath.moveTo(panelX, panelY);
+				segmentStartX = panelX;
+				segmentStartY = panelY;
+			} else {
+				boolean breakSegment = hasDepth && shouldBreakSegment(lastX, lastY, lastDepth, panelX, panelY, depthMm);
+				if (breakSegment) {
+					finalizeSegment(segments, currentPath, segmentStartX, segmentStartY, lastX, lastY);
+					currentPath = new Path2D.Double();
+					currentPath.moveTo(panelX, panelY);
+					segmentStartX = panelX;
+					segmentStartY = panelY;
+				} else if (panelX != lastX || panelY != lastY) {
+					currentPath.lineTo(panelX, panelY);
+				}
+			}
 
-                        lastX = panelX;
-                        lastY = panelY;
-                        lastDepth = depthMm;
-                }
+			lastX = panelX;
+			lastY = panelY;
+			lastDepth = hasDepth ? depthMm : lastDepth;
+		}
 
-                finalizeSegment(segments, currentPath, segmentStartX, segmentStartY, lastX, lastY);
+		finalizeSegment(segments, currentPath, segmentStartX, segmentStartY, lastX, lastY);
 
-                if (segments.isEmpty())
-                        return;
+		if (segments.isEmpty())
+			return;
 
-                Stroke original = g2.getStroke();
-                g2.setStroke(new BasicStroke(3f));
-                g2.setColor(new Color(0, 200, 255, 180));
-                for (Path2D path : segments) {
-                        g2.draw(path);
-                }
-                g2.setStroke(original);
-        }
-
+		Stroke original = g2.getStroke();
+		g2.setStroke(new BasicStroke(3f));
+		g2.setColor(new Color(0, 200, 255, 180));
+		for (Path2D path : segments) {
+			g2.draw(path);
+		}
+		g2.setStroke(original);
+	}
         private boolean shouldBreakSegment(int lastX, int lastY, int lastDepth, int nextX, int nextY, int nextDepth) {
                 if (lastDepth <= 0 || nextDepth <= 0)
                         return true;

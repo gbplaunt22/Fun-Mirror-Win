@@ -15,6 +15,7 @@ public class KinectBridge implements HeadDataSource {
     private volatile int headY = -1;
     private volatile double headZ = -1.0;
     private volatile int[] outlinePoints = new int[0];
+    private volatile int outlinePointStride = 0;
 
     public void start() throws IOException {
         if (running)
@@ -90,6 +91,10 @@ public class KinectBridge implements HeadDataSource {
         return outlinePoints;
     }
 
+    public int getOutlinePointStride() {
+        return outlinePointStride;
+    }
+
     private void parseOutline(String line) {
         String[] parts = line.split("\\s+");
         if (parts.length < 2)
@@ -99,18 +104,27 @@ public class KinectBridge implements HeadDataSource {
             int count = Integer.parseInt(parts[1]);
             if (count <= 0) {
                 outlinePoints = new int[0];
+                outlinePointStride = 0;
                 return;
             }
 
-            int expectedValues = count * 3;
-            if (parts.length < 2 + expectedValues)
+            int availableValues = parts.length - 2;
+            int stride;
+            if (availableValues >= count * 3) {
+                stride = 3;
+            } else if (availableValues >= count * 2) {
+                stride = 2;
+            } else {
                 return;
+            }
 
+            int expectedValues = count * stride;
             int[] next = new int[expectedValues];
             for (int i = 0; i < expectedValues; i++) {
                 next[i] = Integer.parseInt(parts[2 + i]);
             }
             outlinePoints = next;
+            outlinePointStride = stride;
         } catch (NumberFormatException ignored) {
         }
     }

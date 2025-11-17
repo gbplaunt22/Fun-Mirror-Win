@@ -141,13 +141,14 @@ public class HeadTrackViz extends JPanel {
 
 	private void drawOutline(Graphics2D g2, int[] outline, int panelW, int panelH) {
 		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-		
+
 		List<Point2D.Double> contour = orderContourGreedy(outline);
-		if (contour.size() < 3) return;
-		
+		if (contour.size() < 3)
+			return;
+
 		Path2D path = new Path2D.Double();
 		boolean first = true;
-		 for (Point2D.Double p : contour) {
+		for (Point2D.Double p : contour) {
 			int panelX = mapXToPanel((int) p.x, panelW);
 			int panelY = mapYToPanel((int) p.y, panelH);
 			if (first) {
@@ -159,7 +160,6 @@ public class HeadTrackViz extends JPanel {
 		}
 
 		path.closePath();
-		
 
 		Stroke original = g2.getStroke();
 		g2.setStroke(new BasicStroke(3f));
@@ -168,62 +168,66 @@ public class HeadTrackViz extends JPanel {
 		g2.setStroke(original);
 	}
 
-        private java.util.List<Point2D.Double> orderContourGreedy(int[] outline) {
-                int n = outline.length / 2;
-                java.util.List<Point2D.Double> pts = new java.util.ArrayList<>(n);
-                java.util.HashSet<Long> seen = new java.util.HashSet<>();
-                for (int i = 0; i < outline.length; i += 2) {
-                        int x = outline[i];
-                        int y = outline[i + 1];
-                        long key = (((long) x) << 32) ^ (y & 0xffffffffL);
-                        if (seen.add(key)) {
-                                pts.add(new Point2D.Double(x, y));
-                        }
-                }
+	private java.util.List<Point2D.Double> orderContourGreedy(int[] outline) {
+		int n = outline.length / 2;
+		java.util.List<Point2D.Double> pts = new java.util.ArrayList<>(n);
+		java.util.HashSet<Long> seen = new java.util.HashSet<>();
+		for (int i = 0; i < outline.length; i += 2) {
+			int x = outline[i];
+			int y = outline[i + 1];
+			long key = (((long) x) << 32) ^ (y & 0xffffffffL);
+			if (seen.add(key)) {
+				pts.add(new Point2D.Double(x, y));
+			}
+		}
 
-                if (pts.size() < 3)
-                        return pts;
+		if (pts.size() < 3)
+			return pts;
 
-                double centerX = 0;
-                double centerY = 0;
-                for (Point2D.Double p : pts) {
-                        centerX += p.x;
-                        centerY += p.y;
-                }
-                centerX /= pts.size();
-                centerY /= pts.size();
+		double sumX = 0;
+		double sumY = 0;
+		for (Point2D.Double p : pts) {
+			sumX += p.x;
+			sumY += p.y;
+		}
+		
+		double centerX = sumX /= pts.size();
+		double centerY = sumY /= pts.size();
+		
+		final double cx = centerX;
+		final double cy = centerY;
 
-                pts.sort((p1, p2) -> {
-                        double a1 = Math.atan2(p1.y - centerY, p1.x - centerX);
-                        double a2 = Math.atan2(p2.y - centerY, p2.x - centerX);
-                        if (a1 == a2) {
-                                double d1 = dist2(p1.x - centerX, p1.y - centerY);
-                                double d2 = dist2(p2.x - centerX, p2.y - centerY);
-                                return Double.compare(d1, d2);
-                        }
-                        return Double.compare(a1, a2);
-                });
+		pts.sort((p1, p2) -> {
+			double a1 = Math.atan2(p1.y - cy, p1.x - cx);
+			double a2 = Math.atan2(p2.y - cy, p2.x - cx);
+			if (a1 == a2) {
+				double d1 = dist2(p1.x - cx, p1.y - cy);
+				double d2 = dist2(p2.x - cx, p2.y - cy);
+				return Double.compare(d1, d2);
+			}
+			return Double.compare(a1, a2);
+		});
 
-                int startIdx = 0;
-                for (int i = 1; i < pts.size(); i++) {
-                        Point2D.Double p = pts.get(i);
-                        Point2D.Double best = pts.get(startIdx);
-                        if (p.y < best.y || (p.y == best.y && p.x < best.x)) {
-                                startIdx = i;
-                        }
-                }
+		int startIdx = 0;
+		for (int i = 1; i < pts.size(); i++) {
+			Point2D.Double p = pts.get(i);
+			Point2D.Double best = pts.get(startIdx);
+			if (p.y < best.y || (p.y == best.y && p.x < best.x)) {
+				startIdx = i;
+			}
+		}
 
-                if (startIdx > 0) {
-                        java.util.List<Point2D.Double> rotated = new java.util.ArrayList<>(pts.size());
-                        rotated.addAll(pts.subList(startIdx, pts.size()));
-                        rotated.addAll(pts.subList(0, startIdx));
-                        pts = rotated;
-                }
+		if (startIdx > 0) {
+			java.util.List<Point2D.Double> rotated = new java.util.ArrayList<>(pts.size());
+			rotated.addAll(pts.subList(startIdx, pts.size()));
+			rotated.addAll(pts.subList(0, startIdx));
+			pts = rotated;
+		}
 
-                return pts;
-        }
+		return pts;
+	}
 
-        private static double dist2(double dx, double dy) {
-                return dx * dx + dy * dy;
-        }
+	private static double dist2(double dx, double dy) {
+		return dx * dx + dy * dy;
+	}
 }

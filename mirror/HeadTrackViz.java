@@ -25,19 +25,24 @@ public class HeadTrackViz extends JPanel {
 	private double offsetX = 0.0; // in panel-width units
 	private double offsetY = 0.0; // in panel-height units
 
-	public void setCalibration(double scaleX, double scaleY,
-					double offsetX, double offsetY) {
+	// How strongly outline follows the head movement
+	private double parallaxFactor = 1.0;
+	
+	
+
+	public void setCalibration(double scaleX, double scaleY, double offsetX, double offsetY) {
 		this.scaleX = scaleX;
 		this.scaleY = scaleY;
 		this.offsetX = offsetX;
 		this.offsetY = offsetY;
 	}
 
-
 	// constructor takes a HeadDataSource to get head tracking data from
 	public HeadTrackViz(HeadDataSource headSource) {
 		this.headSource = headSource;
 		setBackground(Color.BLACK);
+
+		setupCalibrationKeyBindings();
 	}
 
 	// ~30 fps repaint
@@ -108,7 +113,7 @@ public class HeadTrackViz extends JPanel {
 	private int mapXToPanel(double kinectX, int panelW) {
 		double nx = kinectX / KINECT_WIDTH; // 0..1
 		// mirror flip: left/right
-		//nx = 1.0 - nx;
+		// nx = 1.0 - nx;
 		nx = nx * scaleX + offsetX;
 		return (int) Math.round(nx * panelW);
 	}
@@ -150,15 +155,163 @@ public class HeadTrackViz extends JPanel {
 		final int half = pointSize / 2;
 
 		for (int i = 0; i + 1 < outline.length; i += 2) {
-			int panelX = mapXToPanel(outline[i], panelW);
-			int panelY = mapYToPanel(outline[i + 1], panelH);
+			// int panelX = mapXToPanel(outline[i], panelW);
+			// int panelY = mapYToPanel(outline[i + 1], panelH);
+
+			int baseX = mapXToPanel(outline[i], panelW);
+			int baseY = mapYToPanel(outline[i + 1], panelH);
+
+			// apply parallax translation
+			Point p = applyHeadParallax(baseX, baseY, panelW, panelH);
+			int panelX = p.x;
+			int panelY = p.y;
 
 			// optionally skip points outside panel, cheap clipping
 			if (panelX + half < 0 || panelX - half > panelW || panelY + half < 0 || panelY - half > panelH)
 				continue;
 
 			g2.fillRect(panelX - half, panelY - half, pointSize, pointSize);
+
+			// Translation for parallax effect
+
 		}
+	}
+
+	// Mirror illusion, shift: move outline points based on head position
+	// If head is not at the anchor, we translate
+	// all outline points by the same delta so the silhouette follows the viewer.
+	private Point applyHeadParallax(int baseX, int baseY, int panelW, int panelH) {
+		// Where head is on screen
+		int headX = mapXToPanel(smoothX, panelW);
+		int headY = mapYToPanel(smoothY, panelH);
+
+		// Where do we conceptually want the head to be?
+		int anchorX = panelW / 2;
+		int anchorY = panelH / 2;
+
+		// How strongly should outline follow head?
+		// 1.0 = full lock, 0.5 = half as much
+		double factor = 1.0;
+
+		int dx = (int) Math.round((headX - anchorX) * parallaxFactor);
+		int dy = (int) Math.round((headY - anchorY) * parallaxFactor);
+
+		int outX = baseX + dx;
+		int outY = baseY + dy;
+
+		return new Point(outX, outY);
+	}
+
+	// ---- Runtime calibration helpers ----
+
+	// Small shift in X (offsetX is in "panel width" units, so 0.01 ≈ 1% of width)
+	public void adjustOffsetX(double delta) {
+		offsetX += delta;
+		repaint();
+	}
+
+	public void adjustOffsetY(double delta) {
+		offsetY += delta;
+		repaint();
+	}
+
+	// Scale > 0; values like ±0.05 are usually enough for fine tuning
+	public void adjustScaleX(double delta) {
+		scaleX += delta;
+		if (scaleX < 0.1)
+			scaleX = 0.1; // clamp so it doesn't go negative/tiny
+		repaint();
+	}
+
+	public void adjustScaleY(double delta) {
+		scaleY += delta;
+		if (scaleY < 0.1)
+			scaleY = 0.1;
+		repaint();
+	}
+
+	// Direct setters if you ever want to jump to a value
+	public void setParallaxFactor(double factor) {
+		this.parallaxFactor = factor;
+		repaint();
+	}
+
+	public double getParallaxFactor() {
+		return parallaxFactor;
+	}
+
+	public double getScaleX() {
+		return scaleX;
+	}
+
+	public double getScaleY() {
+		return scaleY;
+	}
+
+	public double getOffsetX() {
+		return offsetX;
+	}
+
+	public double getOffsetY() {
+		return offsetY;
+	}
+
+	private void setupCalibrationKeyBindings() {
+		InputMap im = getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+		ActionMap am = getActionMap();
+
+		// Horizontal offset
+		im.put(KeyStroke.getKeyStroke("LEFT"), "offsetLeft");
+		im.put(KeyStroke.getKeyStroke("RIGHT"), "offsetRight");
+
+		am.put("offsetLeft", new AbstractAction() {
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				adjustOffsetX(-0.01); // move outline left
+			}
+		});
+		am.put("offsetRight", new AbstractAction() {
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				adjustOffsetX(0.01); // move outline right
+			}
+		});
+
+		// Vertical offset
+		im.put(KeyStroke.getKeyStroke("UP"), "offsetUp");
+		im.put(KeyStroke.getKeyStroke("DOWN"), "offsetDown");
+
+		am.put("offsetUp", new AbstractAction() {
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				adjustOffsetY(-0.01); // up on screen
+			}
+		});
+		am.put("offsetDown", new AbstractAction() {
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				adjustOffsetY(0.01); // down on screen
+			}
+		});
+
+		// Zoom in/out (scale)
+		im.put(KeyStroke.getKeyStroke('='), "scaleUp"); // '+' usually needs shift, so '=' is easier
+		im.put(KeyStroke.getKeyStroke('-'), "scaleDown");
+
+		am.put("scaleUp", new AbstractAction() {
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				adjustScaleX(0.05);
+				adjustScaleY(0.05);
+			}
+		});
+		am.put("scaleDown", new AbstractAction() {
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				adjustScaleX(-0.05);
+				adjustScaleY(-0.05);
+			}
+		});
 	}
 
 }

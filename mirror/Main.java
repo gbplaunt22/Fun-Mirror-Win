@@ -1,33 +1,29 @@
 package mirror;
 
+import javax.swing.*;
+
 public class Main {
 
-	public static void main(String[] args) {
-		KinectBridge bridge = new KinectBridge();
+    public static void main(String[] args) {
+        KinectBridge bridge = new KinectBridge();
 
-		try {
-			bridge.start();
-			System.out.println("Java: KinectBridge started. Watching head values...");
+        try {
+            bridge.start();
 
-			// simple test loop: print values for ~10 seconds
-			long end = System.currentTimeMillis() + 10_000;
-			while (System.currentTimeMillis() < end) {
-				int x = bridge.getHeadX();
-				int y = bridge.getHeadY();
-				double z = bridge.getHeadZ();
+            SwingUtilities.invokeLater(() -> {
+                JFrame frame = new JFrame("Fun Mirror Win");
+                frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-				if (x != -1) {
-					System.out.printf("Java sees HEAD %d %d %.2f%n", x, y, z);
-				}
+                HeadTrackViz viz = new HeadTrackViz(bridge);
+                frame.setContentPane(viz);
 
-				Thread.sleep(100); // 10 times per second
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		} finally {
-			bridge.stop();
-		}
+                frame.setSize(800, 600); // match your monitor later
+                frame.setLocationRelativeTo(null);
+                frame.setVisible(true);
+            });
 
-		System.out.println("Java: done.");
-	}
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 }

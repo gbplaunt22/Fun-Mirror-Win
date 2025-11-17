@@ -4,7 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
-public class KinectBridge {
+public class KinectBridge implements HeadDataSource {
 
 	private Process process;
 	private Thread readerThread;

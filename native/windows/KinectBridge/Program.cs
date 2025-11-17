@@ -13,11 +13,14 @@ namespace KinectBridge
         private const DepthImageFormat DepthFormat = DepthImageFormat.Resolution640x480Fps30;
         private const int OutlineStride = 3;
         private const int MaxOutlinePoints = 320;
+        private const int BoundingBoxPadding = 20;
 
         private static DepthImagePixel[] depthPixels;
         private static byte[] playerMask;
         private static readonly List<PixelPoint> OutlineScratch = new List<PixelPoint>(2048);
 
+        // store latest skeletons so depth callback can use them
+        private static Skeleton[] currentSkeletons = null;
         private static volatile bool hasTrackedSkeleton = false;
         private static volatile bool outlineActive = false;
 
@@ -31,6 +34,21 @@ namespace KinectBridge
                 X = x;
                 Y = y;
             }
+        }
+
+        // Small replacement for System.Drawing.Rectangle to avoid adding that dependency.
+        private struct DepthRect
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+
+            public int Width => Right - Left;
+            public int Height => Bottom - Top;
+            public bool IsEmpty => Width <= 0 || Height <= 0;
+
+            public static DepthRect Empty => new DepthRect { Left = 0, Top = 0, Right = 0, Bottom = 0 };
         }
 
         private static void Main(string[] args)
@@ -81,12 +99,16 @@ namespace KinectBridge
                 if (frame == null)
                 {
                     hasTrackedSkeleton = false;
+                    currentSkeletons = null;
                     ClearOutline();
                     return;
                 }
 
                 Skeleton[] skeletons = new Skeleton[frame.SkeletonArrayLength];
                 frame.CopySkeletonDataTo(skeletons);
+
+                // Save skeletons for depth handler to use
+                currentSkeletons = skeletons;
 
                 Skeleton tracked = null;
                 foreach (var s in skeletons)
@@ -154,7 +176,7 @@ namespace KinectBridge
                     return;
                 }
 
-                if (!hasTrackedSkeleton)
+                if (!hasTrackedSkeleton || currentSkeletons == null)
                 {
                     ClearOutline();
                     return;
@@ -163,7 +185,8 @@ namespace KinectBridge
                 frame.CopyDepthImagePixelDataTo(depthPixels);
                 BuildPlayerMask(depthPixels, playerMask);
 
-                int outlineCount = ExtractOutline(playerMask, frame.Width, frame.Height, OutlineScratch);
+                // Extract outline only inside tracked skeleton bounding boxes
+                int outlineCount = ExtractOutlineForSkeletons(playerMask, frame.Width, frame.Height, currentSkeletons, OutlineScratch);
                 if (outlineCount > 0)
                 {
                     PublishOutline(OutlineScratch);
@@ -183,49 +206,125 @@ namespace KinectBridge
             }
         }
 
-        private static int ExtractOutline(byte[] mask, int width, int height, List<PixelPoint> outline)
+        /// <summary>
+        /// For each tracked skeleton, compute a loose depth-space bounding box,
+        /// then extract edge pixels inside that box using a 3x3 neighbor test
+        /// (same logic as PlayerOutlineRenderer.ExtractEdges from XNA).
+        /// </summary>
+        private static int ExtractOutlineForSkeletons(byte[] mask, int width, int height, Skeleton[] skeletons, List<PixelPoint> outline)
         {
             outline.Clear();
 
-            for (int y = 1; y < height - 1; y += OutlineStride)
+            if (skeletons == null)
             {
-                for (int x = 1; x < width - 1; x += OutlineStride)
+                return 0;
+            }
+
+            int maxX = width - 1;
+            int maxY = height - 1;
+
+            for (int s = 0; s < skeletons.Length; s++)
+            {
+                var skel = skeletons[s];
+                if (skel == null || skel.TrackingState != SkeletonTrackingState.Tracked)
                 {
-                    int idx = y * width + x;
-                    if (mask[idx] == 0)
-                    {
-                        continue;
-                    }
+                    continue;
+                }
 
-                    bool isEdge = false;
-                    for (int ny = -1; ny <= 1 && !isEdge; ny++)
+                DepthRect bounds = GetBoundingBoxDepthSpace(skel, width, height);
+                if (bounds.IsEmpty)
+                {
+                    continue;
+                }
+
+                // clamp bounds to frame
+                int left = Math.Max(1, bounds.Left);
+                int top = Math.Max(1, bounds.Top);
+                int right = Math.Min(width - 2, bounds.Right);
+                int bottom = Math.Min(height - 2, bounds.Bottom);
+
+                for (int y = top; y <= bottom; y += OutlineStride)
+                {
+                    int rowOffset = y * width;
+                    for (int x = left; x <= right; x += OutlineStride)
                     {
-                        int sampleY = y + ny;
-                        for (int nx = -1; nx <= 1; nx++)
+                        int idx = rowOffset + x;
+                        if (mask[idx] == 0)
                         {
-                            if (nx == 0 && ny == 0)
-                            {
-                                continue;
-                            }
-
-                            int sampleX = x + nx;
-                            int sampleIdx = sampleY * width + sampleX;
-                            if (mask[sampleIdx] == 0)
-                            {
-                                isEdge = true;
-                                break;
-                            }
+                            continue;
                         }
-                    }
 
-                    if (isEdge)
-                    {
-                        outline.Add(new PixelPoint(x, y));
+                        bool up = mask[(y - 1) * width + x] == 1;
+                        bool down = mask[(y + 1) * width + x] == 1;
+                        bool leftN = mask[rowOffset + (x - 1)] == 1;
+                        bool rightN = mask[rowOffset + (x + 1)] == 1;
+
+                        if (!(up && down && leftN && rightN))
+                        {
+                            outline.Add(new PixelPoint(x, y));
+                        }
                     }
                 }
             }
 
             return outline.Count;
+        }
+
+        /// <summary>
+        /// Compute a loose bounding rectangle in depth-space (640x480),
+        /// mapping each tracked joint to depth coordinates and padding the box.
+        /// </summary>
+        private static DepthRect GetBoundingBoxDepthSpace(Skeleton skeleton, int width, int height)
+        {
+            if (skeleton == null)
+            {
+                return DepthRect.Empty;
+            }
+
+            float minX = width;
+            float minY = height;
+            float maxX = 0;
+            float maxY = 0;
+            bool hasPoint = false;
+
+            foreach (Joint joint in skeleton.Joints)
+            {
+                if (joint.TrackingState == JointTrackingState.NotTracked)
+                {
+                    continue;
+                }
+
+                DepthImagePoint dpt = sensor.CoordinateMapper.MapSkeletonPointToDepthPoint(joint.Position, DepthFormat);
+
+                if (float.IsNaN(dpt.X) || float.IsNaN(dpt.Y))
+                {
+                    continue;
+                }
+
+                hasPoint = true;
+                minX = Math.Min(minX, dpt.X);
+                minY = Math.Min(minY, dpt.Y);
+                maxX = Math.Max(maxX, dpt.X);
+                maxY = Math.Max(maxY, dpt.Y);
+            }
+
+            if (!hasPoint)
+            {
+                return DepthRect.Empty;
+            }
+
+            int left = Math.Max(0, (int)minX - BoundingBoxPadding);
+            int top = Math.Max(0, (int)minY - BoundingBoxPadding);
+            int right = Math.Min(width - 1, (int)maxX + BoundingBoxPadding);
+            int bottom = Math.Min(height - 1, (int)maxY + BoundingBoxPadding);
+
+            // Ensure non-empty rect. Right/Bottom are inclusive here and mirror Rectangle.Right semantics.
+            if (right <= left || bottom <= top)
+            {
+                return DepthRect.Empty;
+            }
+
+            return new DepthRect { Left = left, Top = top, Right = right, Bottom = bottom };
         }
 
         private static void PublishOutline(IList<PixelPoint> points)

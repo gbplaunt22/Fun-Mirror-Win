@@ -1,0 +1,10 @@
+C:\Users\gavin\git\repository\MirrorWin\native\windows\KinectBridge\obj\Debug\KinectBridge.csproj.AssemblyReference.cache
+C:\Users\gavin\git\repository\MirrorWin\native\windows\KinectBridge\obj\Debug\KinectBridge.csproj.CoreCompileInputs.cache
+C:\Users\gavin\git\repository\MirrorWin\native\windows\KinectBridge\bin\Debug\KinectBridge.exe.config
+C:\Users\gavin\git\repository\MirrorWin\native\windows\KinectBridge\bin\Debug\KinectBridge.exe
+C:\Users\gavin\git\repository\MirrorWin\native\windows\KinectBridge\bin\Debug\KinectBridge.pdb
+C:\Users\gavin\git\repository\MirrorWin\native\windows\KinectBridge\bin\Debug\Microsoft.Kinect.dll
+C:\Users\gavin\git\repository\MirrorWin\native\windows\KinectBridge\bin\Debug\Microsoft.Kinect.xml
+C:\Users\gavin\git\repository\MirrorWin\native\windows\KinectBridge\obj\Debug\KinectBr.B4A63152.Up2Date
+C:\Users\gavin\git\repository\MirrorWin\native\windows\KinectBridge\obj\Debug\KinectBridge.exe
+C:\Users\gavin\git\repository\MirrorWin\native\windows\KinectBridge\obj\Debug\KinectBridge.pdb

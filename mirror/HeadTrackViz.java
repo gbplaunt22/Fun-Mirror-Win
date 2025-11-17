@@ -141,26 +141,24 @@ public class HeadTrackViz extends JPanel {
 	private void drawOutline(Graphics2D g2, int[] outline, int panelW, int panelH) {
 		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-		Path2D path = new Path2D.Double();
-		for (int i = 0; i < outline.length; i += 2) {
+		// Use a semi-transparent stroke color for visibility
+		g2.setColor(new Color(0, 200, 255, 180));
+
+		// Draw each outline point as a small filled rectangle (2x2 or 3x3).
+		// This mirrors the XNA PlayerOutlineRenderer which draws 2x2 pixels.
+		final int pointSize = 6;
+		final int half = pointSize / 2;
+
+		for (int i = 0; i + 1 < outline.length; i += 2) {
 			int panelX = mapXToPanel(outline[i], panelW);
 			int panelY = mapYToPanel(outline[i + 1], panelH);
-			if (i == 0) {
-				path.moveTo(panelX, panelY);
-			} else {
-				path.lineTo(panelX, panelY);
-			}
-		}
 
-		if (outline.length >= 6) {
-			path.closePath();
-		}
+			// optionally skip points outside panel, cheap clipping
+			if (panelX + half < 0 || panelX - half > panelW || panelY + half < 0 || panelY - half > panelH)
+				continue;
 
-		Stroke original = g2.getStroke();
-		g2.setStroke(new BasicStroke(3f));
-		g2.setColor(new Color(0, 200, 255, 180));
-		g2.draw(path);
-		g2.setStroke(original);
+			g2.fillRect(panelX - half, panelY - half, pointSize, pointSize);
+		}
 	}
 
 }

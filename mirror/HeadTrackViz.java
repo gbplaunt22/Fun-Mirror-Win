@@ -76,10 +76,20 @@ public class HeadTrackViz extends JPanel {
 		int drawRawX = mapXToPanel(rawX, panelW);
 		int drawRawY = mapYToPanel(rawY, panelH);
 
-		int[] outline = headSource.getOutlinePoints();
-		int outlineStride = headSource.getOutlinePointStride();
-		if (outline != null && outlineStride >= 2 && outline.length >= outlineStride * 2) {
-			Graphics2D g2 = (Graphics2D) g.create();
+                SilhouetteFrame silhouette = headSource.getSilhouetteFrame();
+                if (silhouette != null && !silhouette.isEmpty()) {
+                        Graphics2D g2 = (Graphics2D) g.create();
+                        try {
+                                drawSilhouette(g2, silhouette, panelW, panelH);
+                        } finally {
+                                g2.dispose();
+                        }
+                }
+
+                int[] outline = headSource.getOutlinePoints();
+                int outlineStride = headSource.getOutlinePointStride();
+                if (outline != null && outlineStride >= 2 && outline.length >= outlineStride * 2) {
+                        Graphics2D g2 = (Graphics2D) g.create();
 			try {
 				drawOutline(g2, outline, outlineStride, panelW, panelH);
 			} finally {
@@ -107,23 +117,29 @@ public class HeadTrackViz extends JPanel {
 		}
 	}
 
-	private int mapXToPanel(double kinectX, int panelW) {
-		double nx = kinectX / KINECT_WIDTH; // 0..1
-		// mirror flip: left/right
-		// nx = 1.0 - nx;
-		nx = nx * scaleX + offsetX;
-		return (int) Math.round(nx * panelW);
-	}
+        private int mapXToPanel(double kinectX, int panelW) {
+                return mapXToPanel(kinectX, KINECT_WIDTH, panelW);
+        }
 
-	private int mapYToPanel(double kinectY, int panelH) {
-		double ny = kinectY / KINECT_HEIGHT; // 0..1
-		ny = ny * scaleY + offsetY;
-		return (int) Math.round(ny * panelH);
-	}
+        private int mapXToPanel(double kinectX, int sourceWidth, int panelW) {
+                double nx = kinectX / sourceWidth; // 0..1
+                nx = nx * scaleX + offsetX;
+                return (int) Math.round(nx * panelW);
+        }
 
-	private void drawHeadMarker(Graphics g, int x, int y, double z, int panelW, int panelH) {
-		Graphics2D g2 = (Graphics2D) g;
-		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        private int mapYToPanel(double kinectY, int panelH) {
+                return mapYToPanel(kinectY, KINECT_HEIGHT, panelH);
+        }
+
+        private int mapYToPanel(double kinectY, int sourceHeight, int panelH) {
+                double ny = kinectY / sourceHeight; // 0..1
+                ny = ny * scaleY + offsetY;
+                return (int) Math.round(ny * panelH);
+        }
+
+        private void drawHeadMarker(Graphics g, int x, int y, double z, int panelW, int panelH) {
+                Graphics2D g2 = (Graphics2D) g;
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
 		// circle whose size depends on Z distance
 		int baseRadius = 40;
@@ -136,9 +152,23 @@ public class HeadTrackViz extends JPanel {
 		g2.setColor(new Color(0, 255, 0, 160));
 		g2.fillOval(cx, cy, d, d);
 
-		g2.setColor(Color.WHITE);
-		g2.drawString(String.format("Z=%.2f m", z), 10, 20);
-	}
+                g2.setColor(Color.WHITE);
+                g2.drawString(String.format("Z=%.2f m", z), 10, 20);
+        }
+
+        private void drawSilhouette(Graphics2D g2, SilhouetteFrame frame, int panelW, int panelH) {
+                g2.setColor(new Color(0, 120, 255, 90));
+                frame.forEachRun((y, startX, length) -> {
+                        int start = mapXToPanel(startX, frame.getWidth(), panelW);
+                        int end = mapXToPanel(startX + length, frame.getWidth(), panelW);
+                        int top = mapYToPanel(y, frame.getHeight(), panelH);
+                        int bottom = mapYToPanel(y + 1, frame.getHeight(), panelH);
+
+                        int rectW = Math.max(1, end - start);
+                        int rectH = Math.max(1, bottom - top);
+                        g2.fillRect(start, top, rectW, rectH);
+                });
+        }
 
         private void drawOutline(Graphics2D g2, int[] outline, int stride, int panelW, int panelH) {
                 if (outline.length < stride * 2)

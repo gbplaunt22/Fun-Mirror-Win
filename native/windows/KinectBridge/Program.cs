@@ -320,13 +320,12 @@ namespace KinectBridge
 
         private static bool TryStep(byte[] mask, int width, int height, PixelPoint current, int backtrackDir, out PixelPoint next, out int nextBacktrack)
         {
-            // Moore-neighbor tracing searches starting two steps clockwise from
-            // the direction we entered the current pixel (i.e., hugging the
-            // contour on the right-hand side). Using +6 (two steps
-            // counter-clockwise) makes the tracer immediately step back toward
-            // the previous pixel, producing duplicated points and a wobbling
-            // outline. Rotate the starting direction clockwise instead.
-            int startDir = (backtrackDir + 2) & 7;
+            // Moore-neighbor tracing searches starting two steps counter-
+            // clockwise from the direction we entered the current pixel so
+            // that we keep the boundary on our right-hand side. Using +2
+            // (clockwise) lets the walker wander inside the player mask and
+            // produces horizontal scanlines instead of a tight outline.
+            int startDir = (backtrackDir + 6) & 7;
             for (int i = 0; i < 8; i++)
             {
                 int dir = (startDir + i) & 7;

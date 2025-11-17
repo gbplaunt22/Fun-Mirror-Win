@@ -2,6 +2,7 @@ package mirror;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.geom.Path2D;
 
 public class HeadTrackViz extends JPanel {
 
@@ -24,14 +25,14 @@ public class HeadTrackViz extends JPanel {
 	private double offsetX = 0.0; // in panel-width units
 	private double offsetY = 0.0; // in panel-height units
 
-	public void setCalibration(double scaleX, double scaleY, 
-							   double offsetX, double offsetY) {
+	public void setCalibration(double scaleX, double scaleY,
+					double offsetX, double offsetY) {
 		this.scaleX = scaleX;
 		this.scaleY = scaleY;
 		this.offsetX = offsetX;
 		this.offsetY = offsetY;
 	}
-	
+
 
 	// constructor takes a HeadDataSource to get head tracking data from
 	public HeadTrackViz(HeadDataSource headSource) {
@@ -73,6 +74,16 @@ public class HeadTrackViz extends JPanel {
 
 		int drawRawX = mapXToPanel(rawX, panelW);
 		int drawRawY = mapYToPanel(rawY, panelH);
+
+		int[] outline = headSource.getOutlinePoints();
+		if (outline != null && outline.length >= 4) {
+			Graphics2D g2 = (Graphics2D) g.create();
+			try {
+				drawOutline(g2, outline, panelW, panelH);
+			} finally {
+				g2.dispose();
+			}
+		}
 
 		// draw marker
 		drawHeadMarker(g, drawX, drawY, smoothZ, panelW, panelH);
@@ -125,6 +136,31 @@ public class HeadTrackViz extends JPanel {
 
 		g2.setColor(Color.WHITE);
 		g2.drawString(String.format("Z=%.2f m", z), 10, 20);
+	}
+
+	private void drawOutline(Graphics2D g2, int[] outline, int panelW, int panelH) {
+		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+		Path2D path = new Path2D.Double();
+		for (int i = 0; i < outline.length; i += 2) {
+			int panelX = mapXToPanel(outline[i], panelW);
+			int panelY = mapYToPanel(outline[i + 1], panelH);
+			if (i == 0) {
+				path.moveTo(panelX, panelY);
+			} else {
+				path.lineTo(panelX, panelY);
+			}
+		}
+
+		if (outline.length >= 6) {
+			path.closePath();
+		}
+
+		Stroke original = g2.getStroke();
+		g2.setStroke(new BasicStroke(3f));
+		g2.setColor(new Color(0, 200, 255, 180));
+		g2.draw(path);
+		g2.setStroke(original);
 	}
 
 }

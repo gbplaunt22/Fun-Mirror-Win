@@ -6,80 +6,112 @@ import java.io.InputStreamReader;
 
 public class KinectBridge implements HeadDataSource {
 
-	private Process process;
-	private Thread readerThread;
-	private volatile boolean running = false;
+    private Process process;
+    private Thread readerThread;
+    private volatile boolean running = false;
 
-	// latest head values from Kinect
-	private volatile int headX = -1;
-	private volatile int headY = -1;
-	private volatile double headZ = -1.0;
+    // latest head values from Kinect
+    private volatile int headX = -1;
+    private volatile int headY = -1;
+    private volatile double headZ = -1.0;
+    private volatile int[] outlinePoints = new int[0];
 
-	public void start() throws IOException {
-		if (running)
-			return;
+    public void start() throws IOException {
+        if (running)
+            return;
 
-		ProcessBuilder pb = new ProcessBuilder("native/windows/KinectBridge.exe");
-		pb.redirectErrorStream(true); // merge stdout+stderr
-		process = pb.start();
-		running = true;
+        ProcessBuilder pb = new ProcessBuilder("native/windows/KinectBridge.exe");
+        pb.redirectErrorStream(true); // merge stdout+stderr
+        process = pb.start();
+        running = true;
 
-		readerThread = new Thread(this::readLoop, "KinectBridgeReader");
-		readerThread.setDaemon(true);
-		readerThread.start();
-	}
+        readerThread = new Thread(this::readLoop, "KinectBridgeReader");
+        readerThread.setDaemon(true);
+        readerThread.start();
+    }
 
-	private void readLoop() {
-		try (BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+    private void readLoop() {
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
 
-			String line;
-			while (running && (line = br.readLine()) != null) {
-				// System.out.println("FROM C#: " + line); // debug
+            String line;
+            while (running && (line = br.readLine()) != null) {
+                // System.out.println("FROM C#: " + line); // debug
 
-				if (line.startsWith("HEAD")) {
-					// format: HEAD x y z
-					String[] parts = line.split("\\s+");
-					if (parts.length >= 4) {
-						try {
-							int x = Integer.parseInt(parts[1]);
-							int y = Integer.parseInt(parts[2]);
-							double z = Double.parseDouble(parts[3]);
+                if (line.startsWith("HEAD")) {
+                    // format: HEAD x y z
+                    String[] parts = line.split("\\s+");
+                    if (parts.length >= 4) {
+                        try {
+                            int x = Integer.parseInt(parts[1]);
+                            int y = Integer.parseInt(parts[2]);
+                            double z = Double.parseDouble(parts[3]);
 
-							headX = x;
-							headY = y;
-							headZ = z;
-						} catch (NumberFormatException ignored) {
-						}
-					}
-				}
-				// you can later handle other messages here
-			}
-		} catch (IOException e) {
-			if (running) {
-				e.printStackTrace();
-			}
-		} finally {
-			running = false;
-		}
-	}
+                            headX = x;
+                            headY = y;
+                            headZ = z;
+                        } catch (NumberFormatException ignored) {
+                        }
+                    }
+                } else if (line.startsWith("OUTLINE")) {
+                    parseOutline(line);
+                }
+                // you can later handle other messages here
+            }
+        } catch (IOException e) {
+            if (running) {
+                e.printStackTrace();
+            }
+        } finally {
+            running = false;
+        }
+    }
 
-	public void stop() {
-		running = false;
-		if (process != null) {
-			process.destroy();
-		}
-	}
+    public void stop() {
+        running = false;
+        if (process != null) {
+            process.destroy();
+        }
+    }
 
-	// getters for your viz code
-	public int getHeadX() {
-		return headX;
-	}
+    // getters for your viz code
+    public int getHeadX() {
+        return headX;
+    }
 
-	public int getHeadY() {
-		return headY;
-	}
+    public int getHeadY() {
+        return headY;
+    }
 
-	public double getHeadZ() {
-		return headZ;
-	}
+    public double getHeadZ() {
+        return headZ;
+    }
+
+    public int[] getOutlinePoints() {
+        return outlinePoints;
+    }
+
+    private void parseOutline(String line) {
+        String[] parts = line.split("\\s+");
+        if (parts.length < 2)
+            return;
+
+        try {
+            int count = Integer.parseInt(parts[1]);
+            if (count <= 0) {
+                outlinePoints = new int[0];
+                return;
+            }
+
+            int expectedValues = count * 2;
+            if (parts.length < 2 + expectedValues)
+                return;
+
+            int[] next = new int[expectedValues];
+            for (int i = 0; i < expectedValues; i++) {
+                next[i] = Integer.parseInt(parts[2 + i]);
+            }
+            outlinePoints = next;
+        } catch (NumberFormatException ignored) {
+        }
+    }
 }

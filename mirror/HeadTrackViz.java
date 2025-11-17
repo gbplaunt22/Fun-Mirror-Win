@@ -3,6 +3,8 @@ package mirror;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.Path2D;
+import java.util.ArrayList;
+import java.util.List;
 
 public class HeadTrackViz extends JPanel {
 
@@ -73,8 +75,8 @@ public class HeadTrackViz extends JPanel {
 		int drawRawX = mapXToPanel(rawX, panelW);
 		int drawRawY = mapYToPanel(rawY, panelH);
 
-		int[] outline = headSource.getOutlinePoints();
-		if (outline != null && outline.length >= 4) {
+                int[] outline = headSource.getOutlinePoints();
+                if (outline != null && outline.length >= 6) {
 			Graphics2D g2 = (Graphics2D) g.create();
 			try {
 				drawOutline(g2, outline, panelW, panelH);
@@ -136,41 +138,94 @@ public class HeadTrackViz extends JPanel {
 		g2.drawString(String.format("Z=%.2f m", z), 10, 20);
 	}
 
+        private static final int DEPTH_BREAK_MM = 120;
+        private static final int DISTANCE_BREAK_PX = 45;
+        private static final int CLOSE_GAP_PX = 16;
+
         private void drawOutline(Graphics2D g2, int[] outline, int panelW, int panelH) {
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-                Path2D path = new Path2D.Double();
-                boolean hasPoint = false;
-                int prevX = Integer.MIN_VALUE;
-                int prevY = Integer.MIN_VALUE;
-
-                for (int i = 0; i < outline.length - 1; i += 2) {
-                        int panelX = mapXToPanel(outline[i], panelW);
-                        int panelY = mapYToPanel(outline[i + 1], panelH);
-
-                        if (!hasPoint) {
-                                path.moveTo(panelX, panelY);
-                                hasPoint = true;
-                        } else {
-                                if (panelX == prevX && panelY == prevY) {
-                                        continue;
-                                }
-                                path.lineTo(panelX, panelY);
-                        }
-
-                        prevX = panelX;
-                        prevY = panelY;
-                }
-
-                if (!hasPoint)
+                if (outline.length < 6)
                         return;
 
-                path.closePath();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                List<Path2D> segments = new ArrayList<>();
+                Path2D currentPath = null;
+                int segmentStartX = Integer.MIN_VALUE;
+                int segmentStartY = Integer.MIN_VALUE;
+                int lastX = Integer.MIN_VALUE;
+                int lastY = Integer.MIN_VALUE;
+                int lastDepth = Integer.MIN_VALUE;
+
+                for (int i = 0; i <= outline.length - 3; i += 3) {
+                        int kinectX = outline[i];
+                        int kinectY = outline[i + 1];
+                        int depthMm = outline[i + 2];
+
+                        int panelX = mapXToPanel(kinectX, panelW);
+                        int panelY = mapYToPanel(kinectY, panelH);
+
+                        if (currentPath == null) {
+                                currentPath = new Path2D.Double();
+                                currentPath.moveTo(panelX, panelY);
+                                segmentStartX = panelX;
+                                segmentStartY = panelY;
+                        } else {
+                                boolean breakSegment = shouldBreakSegment(lastX, lastY, lastDepth, panelX, panelY, depthMm);
+                                if (breakSegment) {
+                                        finalizeSegment(segments, currentPath, segmentStartX, segmentStartY, lastX, lastY);
+                                        currentPath = new Path2D.Double();
+                                        currentPath.moveTo(panelX, panelY);
+                                        segmentStartX = panelX;
+                                        segmentStartY = panelY;
+                                } else if (panelX != lastX || panelY != lastY) {
+                                        currentPath.lineTo(panelX, panelY);
+                                }
+                        }
+
+                        lastX = panelX;
+                        lastY = panelY;
+                        lastDepth = depthMm;
+                }
+
+                finalizeSegment(segments, currentPath, segmentStartX, segmentStartY, lastX, lastY);
+
+                if (segments.isEmpty())
+                        return;
 
                 Stroke original = g2.getStroke();
                 g2.setStroke(new BasicStroke(3f));
                 g2.setColor(new Color(0, 200, 255, 180));
-                g2.draw(path);
+                for (Path2D path : segments) {
+                        g2.draw(path);
+                }
                 g2.setStroke(original);
+        }
+
+        private boolean shouldBreakSegment(int lastX, int lastY, int lastDepth, int nextX, int nextY, int nextDepth) {
+                if (lastDepth <= 0 || nextDepth <= 0)
+                        return true;
+
+                int depthDelta = Math.abs(nextDepth - lastDepth);
+                if (depthDelta > DEPTH_BREAK_MM)
+                        return true;
+
+                int dx = nextX - lastX;
+                int dy = nextY - lastY;
+                return dx * dx + dy * dy > DISTANCE_BREAK_PX * DISTANCE_BREAK_PX;
+        }
+
+        private void finalizeSegment(List<Path2D> segments, Path2D currentPath, int startX, int startY, int endX, int endY) {
+                if (currentPath == null)
+                        return;
+
+                if (startX != Integer.MIN_VALUE && endX != Integer.MIN_VALUE) {
+                        int dx = endX - startX;
+                        int dy = endY - startY;
+                        if (dx * dx + dy * dy <= CLOSE_GAP_PX * CLOSE_GAP_PX) {
+                                currentPath.closePath();
+                        }
+                }
+
+                segments.add(currentPath);
         }
 }

@@ -27,11 +27,20 @@ namespace KinectBridge
         {
             public readonly int X;
             public readonly int Y;
+            public readonly int Depth;
 
             public PixelPoint(int x, int y)
             {
                 X = x;
                 Y = y;
+                Depth = 0;
+            }
+
+            public PixelPoint(int x, int y, int depth)
+            {
+                X = x;
+                Y = y;
+                Depth = depth;
             }
         }
 
@@ -165,7 +174,7 @@ namespace KinectBridge
                 frame.CopyDepthImagePixelDataTo(depthPixels);
                 BuildPlayerMask(depthPixels, playerMask);
 
-                int outlineCount = ExtractOutline(playerMask, frame.Width, frame.Height, OutlineScratch);
+                int outlineCount = ExtractOutline(playerMask, depthPixels, frame.Width, frame.Height, OutlineScratch);
                 if (outlineCount > 0)
                 {
                     PublishOutline(OutlineScratch);
@@ -185,7 +194,7 @@ namespace KinectBridge
             }
         }
 
-        private static int ExtractOutline(byte[] mask, int width, int height, List<PixelPoint> outline)
+        private static int ExtractOutline(byte[] mask, DepthImagePixel[] depth, int width, int height, List<PixelPoint> outline)
         {
             outline.Clear();
 
@@ -194,7 +203,7 @@ namespace KinectBridge
                 return 0;
             }
 
-            TraceContour(mask, width, height, start, outline);
+            TraceContour(mask, depth, width, height, start, outline);
             return outline.Count;
         }
 
@@ -258,9 +267,9 @@ namespace KinectBridge
             return false;
         }
 
-        private static void TraceContour(byte[] mask, int width, int height, PixelPoint start, List<PixelPoint> outline)
+        private static void TraceContour(byte[] mask, DepthImagePixel[] depth, int width, int height, PixelPoint start, List<PixelPoint> outline)
         {
-            outline.Add(start);
+            outline.Add(new PixelPoint(start.X, start.Y, SampleDepth(depth, width, start.X, start.Y)));
 
             PixelPoint current = start;
             int backtrackDir = 4; // pretend we entered from the west
@@ -287,7 +296,7 @@ namespace KinectBridge
                 decimateCounter++;
                 if (decimateCounter >= OutlineStride)
                 {
-                    outline.Add(current);
+                    outline.Add(new PixelPoint(current.X, current.Y, SampleDepth(depth, width, current.X, current.Y)));
                     decimateCounter = 0;
 
                     if (outline.Count >= MaxOutlinePoints)
@@ -296,6 +305,17 @@ namespace KinectBridge
                     }
                 }
             }
+        }
+
+        private static int SampleDepth(DepthImagePixel[] depth, int width, int x, int y)
+        {
+            int idx = y * width + x;
+            if (idx < 0 || idx >= depth.Length)
+            {
+                return 0;
+            }
+
+            return depth[idx].Depth;
         }
 
         private static bool TryStep(byte[] mask, int width, int height, PixelPoint current, int backtrackDir, out PixelPoint next, out int nextBacktrack)
@@ -347,7 +367,7 @@ namespace KinectBridge
                 count = MaxOutlinePoints;
             }
 
-            var builder = new StringBuilder(count * 6 + 16);
+            var builder = new StringBuilder(count * 9 + 16);
             builder.Append("OUTLINE ");
             builder.Append(count);
 
@@ -365,6 +385,8 @@ namespace KinectBridge
                 builder.Append(pt.X);
                 builder.Append(' ');
                 builder.Append(pt.Y);
+                builder.Append(' ');
+                builder.Append(pt.Depth);
             }
 
             lock (ConsoleLock)

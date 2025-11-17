@@ -102,7 +102,7 @@ public class KinectBridge implements HeadDataSource {
                 return;
             }
 
-            int expectedValues = count * 2;
+            int expectedValues = count * 3;
             if (parts.length < 2 + expectedValues)
                 return;
 

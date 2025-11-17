@@ -52,12 +52,14 @@ namespace KinectBridge
             public readonly int Y;
             public readonly int X;
             public readonly int Length;
+            public readonly byte PlayerIndex;
 
-            public SilhouetteRun(int y, int x, int length)
+            public SilhouetteRun(int y, int x, int length, byte playerIndex)
             {
                 Y = y;
                 X = x;
                 Length = length;
+                PlayerIndex = playerIndex;
             }
         }
 
@@ -209,7 +211,7 @@ namespace KinectBridge
         {
             for (int i = 0; i < depthData.Length; i++)
             {
-                mask[i] = depthData[i].PlayerIndex > 0 ? (byte)1 : (byte)0;
+                mask[i] = depthData[i].PlayerIndex;
             }
         }
 
@@ -450,15 +452,16 @@ namespace KinectBridge
                     }
 
                     int start = x;
-                    while (x < width && mask[row + x] != 0)
+                    byte player = mask[row + x];
+                    while (x < width && mask[row + x] == player)
                     {
                         x++;
                     }
 
                     int length = x - start;
-                    if (length > 0)
+                    if (length > 0 && player != 0)
                     {
-                        SilhouetteScratch.Add(new SilhouetteRun(y, start, length));
+                        SilhouetteScratch.Add(new SilhouetteRun(y, start, length, player));
                     }
                 }
             }
@@ -485,6 +488,8 @@ namespace KinectBridge
                 builder.Append(run.X);
                 builder.Append(' ');
                 builder.Append(run.Length);
+                builder.Append(' ');
+                builder.Append(run.PlayerIndex);
             }
 
             lock (ConsoleLock)

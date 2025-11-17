@@ -3,9 +3,6 @@ package mirror;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.Path2D;
-import java.util.ArrayList;
-import java.util.List;
-import java.awt.geom.Point2D;
 
 public class HeadTrackViz extends JPanel {
 
@@ -139,95 +136,41 @@ public class HeadTrackViz extends JPanel {
 		g2.drawString(String.format("Z=%.2f m", z), 10, 20);
 	}
 
-	private void drawOutline(Graphics2D g2, int[] outline, int panelW, int panelH) {
-		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        private void drawOutline(Graphics2D g2, int[] outline, int panelW, int panelH) {
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-		List<Point2D.Double> contour = orderContourGreedy(outline);
-		if (contour.size() < 3)
-			return;
+                Path2D path = new Path2D.Double();
+                boolean hasPoint = false;
+                int prevX = Integer.MIN_VALUE;
+                int prevY = Integer.MIN_VALUE;
 
-		Path2D path = new Path2D.Double();
-		boolean first = true;
-		for (Point2D.Double p : contour) {
-			int panelX = mapXToPanel((int) p.x, panelW);
-			int panelY = mapYToPanel((int) p.y, panelH);
-			if (first) {
-				path.moveTo(panelX, panelY);
-				first = false;
-			} else {
-				path.lineTo(panelX, panelY);
-			}
-		}
+                for (int i = 0; i < outline.length - 1; i += 2) {
+                        int panelX = mapXToPanel(outline[i], panelW);
+                        int panelY = mapYToPanel(outline[i + 1], panelH);
 
-		path.closePath();
+                        if (!hasPoint) {
+                                path.moveTo(panelX, panelY);
+                                hasPoint = true;
+                        } else {
+                                if (panelX == prevX && panelY == prevY) {
+                                        continue;
+                                }
+                                path.lineTo(panelX, panelY);
+                        }
 
-		Stroke original = g2.getStroke();
-		g2.setStroke(new BasicStroke(3f));
-		g2.setColor(new Color(0, 200, 255, 180));
-		g2.draw(path);
-		g2.setStroke(original);
-	}
+                        prevX = panelX;
+                        prevY = panelY;
+                }
 
-	private java.util.List<Point2D.Double> orderContourGreedy(int[] outline) {
-		int n = outline.length / 2;
-		java.util.List<Point2D.Double> pts = new java.util.ArrayList<>(n);
-		java.util.HashSet<Long> seen = new java.util.HashSet<>();
-		for (int i = 0; i < outline.length; i += 2) {
-			int x = outline[i];
-			int y = outline[i + 1];
-			long key = (((long) x) << 32) ^ (y & 0xffffffffL);
-			if (seen.add(key)) {
-				pts.add(new Point2D.Double(x, y));
-			}
-		}
+                if (!hasPoint)
+                        return;
 
-		if (pts.size() < 3)
-			return pts;
+                path.closePath();
 
-		double sumX = 0;
-		double sumY = 0;
-		for (Point2D.Double p : pts) {
-			sumX += p.x;
-			sumY += p.y;
-		}
-		
-		double centerX = sumX /= pts.size();
-		double centerY = sumY /= pts.size();
-		
-		final double cx = centerX;
-		final double cy = centerY;
-
-		pts.sort((p1, p2) -> {
-			double a1 = Math.atan2(p1.y - cy, p1.x - cx);
-			double a2 = Math.atan2(p2.y - cy, p2.x - cx);
-			if (a1 == a2) {
-				double d1 = dist2(p1.x - cx, p1.y - cy);
-				double d2 = dist2(p2.x - cx, p2.y - cy);
-				return Double.compare(d1, d2);
-			}
-			return Double.compare(a1, a2);
-		});
-
-		int startIdx = 0;
-		for (int i = 1; i < pts.size(); i++) {
-			Point2D.Double p = pts.get(i);
-			Point2D.Double best = pts.get(startIdx);
-			if (p.y < best.y || (p.y == best.y && p.x < best.x)) {
-				startIdx = i;
-			}
-		}
-
-		if (startIdx > 0) {
-			java.util.List<Point2D.Double> rotated = new java.util.ArrayList<>(pts.size());
-			rotated.addAll(pts.subList(startIdx, pts.size()));
-			rotated.addAll(pts.subList(0, startIdx));
-			pts = rotated;
-		}
-
-		return pts;
-	}
-
-	private static double dist2(double dx, double dy) {
-		return dx * dx + dy * dy;
-	}
+                Stroke original = g2.getStroke();
+                g2.setStroke(new BasicStroke(3f));
+                g2.setColor(new Color(0, 200, 255, 180));
+                g2.draw(path);
+                g2.setStroke(original);
+        }
 }

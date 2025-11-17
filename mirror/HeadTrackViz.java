@@ -4,6 +4,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.Path2D;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 public class HeadTrackViz extends JPanel {
@@ -139,94 +140,103 @@ public class HeadTrackViz extends JPanel {
 		g2.drawString(String.format("Z=%.2f m", z), 10, 20);
 	}
 
-        private static final int DEPTH_BREAK_MM = 120;
-        private static final int DISTANCE_BREAK_PX = 45;
-        private static final int CLOSE_GAP_PX = 16;
-
-	private void drawOutline(Graphics2D g2, int[] outline, int stride, int panelW, int panelH) {
-		if (outline.length < stride * 2)
-			return;
-
-		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-		boolean hasDepth = stride >= 3;
-		List<Path2D> segments = new ArrayList<>();
-		Path2D currentPath = null;
-		int segmentStartX = Integer.MIN_VALUE;
-		int segmentStartY = Integer.MIN_VALUE;
-		int lastX = Integer.MIN_VALUE;
-		int lastY = Integer.MIN_VALUE;
-		int lastDepth = Integer.MIN_VALUE;
-
-		for (int i = 0; i <= outline.length - stride; i += stride) {
-			int kinectX = outline[i];
-			int kinectY = outline[i + 1];
-			int depthMm = hasDepth ? outline[i + 2] : 0;
-
-			int panelX = mapXToPanel(kinectX, panelW);
-			int panelY = mapYToPanel(kinectY, panelH);
-
-			if (currentPath == null) {
-				currentPath = new Path2D.Double();
-				currentPath.moveTo(panelX, panelY);
-				segmentStartX = panelX;
-				segmentStartY = panelY;
-			} else {
-				boolean breakSegment = hasDepth && shouldBreakSegment(lastX, lastY, lastDepth, panelX, panelY, depthMm);
-				if (breakSegment) {
-					finalizeSegment(segments, currentPath, segmentStartX, segmentStartY, lastX, lastY);
-					currentPath = new Path2D.Double();
-					currentPath.moveTo(panelX, panelY);
-					segmentStartX = panelX;
-					segmentStartY = panelY;
-				} else if (panelX != lastX || panelY != lastY) {
-					currentPath.lineTo(panelX, panelY);
-				}
-			}
-
-			lastX = panelX;
-			lastY = panelY;
-			lastDepth = hasDepth ? depthMm : lastDepth;
-		}
-
-		finalizeSegment(segments, currentPath, segmentStartX, segmentStartY, lastX, lastY);
-
-		if (segments.isEmpty())
-			return;
-
-		Stroke original = g2.getStroke();
-		g2.setStroke(new BasicStroke(3f));
-		g2.setColor(new Color(0, 200, 255, 180));
-		for (Path2D path : segments) {
-			g2.draw(path);
-		}
-		g2.setStroke(original);
-	}
-        private boolean shouldBreakSegment(int lastX, int lastY, int lastDepth, int nextX, int nextY, int nextDepth) {
-                if (lastDepth <= 0 || nextDepth <= 0)
-                        return true;
-
-                int depthDelta = Math.abs(nextDepth - lastDepth);
-                if (depthDelta > DEPTH_BREAK_MM)
-                        return true;
-
-                int dx = nextX - lastX;
-                int dy = nextY - lastY;
-                return dx * dx + dy * dy > DISTANCE_BREAK_PX * DISTANCE_BREAK_PX;
-        }
-
-        private void finalizeSegment(List<Path2D> segments, Path2D currentPath, int startX, int startY, int endX, int endY) {
-                if (currentPath == null)
+        private void drawOutline(Graphics2D g2, int[] outline, int stride, int panelW, int panelH) {
+                if (outline.length < stride * 2)
                         return;
 
-                if (startX != Integer.MIN_VALUE && endX != Integer.MIN_VALUE) {
-                        int dx = endX - startX;
-                        int dy = endY - startY;
-                        if (dx * dx + dy * dy <= CLOSE_GAP_PX * CLOSE_GAP_PX) {
-                                currentPath.closePath();
-                        }
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                List<OutlinePoint> mapped = mapOutline(outline, stride, panelW, panelH);
+                if (mapped.isEmpty())
+                        return;
+
+                Path2D orderedOutline = buildOrderedOutline(mapped);
+                Stroke original = g2.getStroke();
+                g2.setColor(new Color(0, 200, 255, 180));
+
+                if (orderedOutline != null) {
+                        g2.setStroke(new BasicStroke(3f));
+                        g2.draw(orderedOutline);
+                } else {
+                        drawPointCloud(g2, mapped);
                 }
 
-                segments.add(currentPath);
+                g2.setStroke(original);
+        }
+
+        private List<OutlinePoint> mapOutline(int[] outline, int stride, int panelW, int panelH) {
+                boolean hasDepth = stride >= 3;
+                List<OutlinePoint> mapped = new ArrayList<>(outline.length / stride);
+                for (int i = 0; i <= outline.length - stride; i += stride) {
+                        double panelX = mapXToPanel(outline[i], panelW);
+                        double panelY = mapYToPanel(outline[i + 1], panelH);
+                        int depth = hasDepth ? outline[i + 2] : 0;
+                        mapped.add(new OutlinePoint(panelX, panelY, depth));
+                }
+                return mapped;
+        }
+
+        private Path2D buildOrderedOutline(List<OutlinePoint> points) {
+                if (points.size() < 3)
+                        return null;
+
+                double sumX = 0;
+                double sumY = 0;
+                for (OutlinePoint p : points) {
+                        sumX += p.x;
+                        sumY += p.y;
+                }
+
+                final double centerX = sumX / points.size();
+                final double centerY = sumY / points.size();
+
+                points.sort(Comparator.comparingDouble(p -> Math.atan2(p.y - centerY, p.x - centerX)));
+
+                Path2D path = new Path2D.Double();
+                OutlinePoint first = points.get(0);
+                path.moveTo(first.x, first.y);
+                for (int i = 1; i < points.size(); i++) {
+                        OutlinePoint p = points.get(i);
+                        path.lineTo(p.x, p.y);
+                }
+                path.closePath();
+
+                double area = polygonArea(points);
+                if (Math.abs(area) < 1.0) {
+                        return null;
+                }
+
+                return path;
+        }
+
+        private double polygonArea(List<OutlinePoint> points) {
+                double area = 0.0;
+                for (int i = 0; i < points.size(); i++) {
+                        OutlinePoint a = points.get(i);
+                        OutlinePoint b = points.get((i + 1) % points.size());
+                        area += (a.x * b.y) - (b.x * a.y);
+                }
+                return area / 2.0;
+        }
+
+        private void drawPointCloud(Graphics2D g2, List<OutlinePoint> points) {
+                int size = 4;
+                for (OutlinePoint p : points) {
+                        int x = (int) Math.round(p.x) - size / 2;
+                        int y = (int) Math.round(p.y) - size / 2;
+                        g2.fillOval(x, y, size, size);
+                }
+        }
+
+        private static class OutlinePoint {
+                final double x;
+                final double y;
+                final int depth;
+
+                OutlinePoint(double x, double y, int depth) {
+                        this.x = x;
+                        this.y = y;
+                        this.depth = depth;
+                }
         }
 }

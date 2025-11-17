@@ -3,6 +3,9 @@ package mirror;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.Path2D;
+import java.util.ArrayList;
+import java.util.List;
+import java.awt.geom.Point2D;
 
 public class HeadTrackViz extends JPanel {
 
@@ -25,14 +28,12 @@ public class HeadTrackViz extends JPanel {
 	private double offsetX = 0.0; // in panel-width units
 	private double offsetY = 0.0; // in panel-height units
 
-	public void setCalibration(double scaleX, double scaleY,
-					double offsetX, double offsetY) {
+	public void setCalibration(double scaleX, double scaleY, double offsetX, double offsetY) {
 		this.scaleX = scaleX;
 		this.scaleY = scaleY;
 		this.offsetX = offsetX;
 		this.offsetY = offsetY;
 	}
-
 
 	// constructor takes a HeadDataSource to get head tracking data from
 	public HeadTrackViz(HeadDataSource headSource) {
@@ -108,7 +109,7 @@ public class HeadTrackViz extends JPanel {
 	private int mapXToPanel(double kinectX, int panelW) {
 		double nx = kinectX / KINECT_WIDTH; // 0..1
 		// mirror flip: left/right
-		//nx = 1.0 - nx;
+		// nx = 1.0 - nx;
 		nx = nx * scaleX + offsetX;
 		return (int) Math.round(nx * panelW);
 	}
@@ -140,21 +141,25 @@ public class HeadTrackViz extends JPanel {
 
 	private void drawOutline(Graphics2D g2, int[] outline, int panelW, int panelH) {
 		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
+		
+		List<Point2D.Double> contour = orderContourGreedy(outline);
+		if (contour.size() < 3) return;
+		
 		Path2D path = new Path2D.Double();
-		for (int i = 0; i < outline.length; i += 2) {
-			int panelX = mapXToPanel(outline[i], panelW);
-			int panelY = mapYToPanel(outline[i + 1], panelH);
-			if (i == 0) {
+		boolean first = true;
+		 for (Point2D.Double p : contour) {
+			int panelX = mapXToPanel((int) p.x, panelW);
+			int panelY = mapYToPanel((int) p.y, panelH);
+			if (first) {
 				path.moveTo(panelX, panelY);
+				first = false;
 			} else {
 				path.lineTo(panelX, panelY);
 			}
 		}
 
-		if (outline.length >= 6) {
-			path.closePath();
-		}
+		path.closePath();
+		
 
 		Stroke original = g2.getStroke();
 		g2.setStroke(new BasicStroke(3f));
@@ -163,4 +168,52 @@ public class HeadTrackViz extends JPanel {
 		g2.setStroke(original);
 	}
 
+	private java.util.List<Point2D.Double> orderContourGreedy(int[] outline) {
+		int n = outline.length / 2;
+		java.util.List<Point2D.Double> pts = new java.util.ArrayList<>(n);
+		for (int i = 0; i < outline.length; i += 2) {
+			pts.add(new Point2D.Double(outline[i], outline[i + 1]));
+		}
+
+		// nothing to do
+		if (pts.size() < 3)
+			return pts;
+
+		// 1) choose starting point: smallest y, then smallest x
+		int startIdx = 0;
+		for (int i = 1; i < pts.size(); i++) {
+			Point2D.Double p = pts.get(i);
+			Point2D.Double best = pts.get(startIdx);
+			if (p.y < best.y || (p.y == best.y && p.x < best.x)) {
+				startIdx = i;
+			}
+		}
+
+		java.util.List<Point2D.Double> ordered = new java.util.ArrayList<>(n);
+		Point2D.Double current = pts.remove(startIdx);
+		ordered.add(current);
+
+		// 2) walk to the nearest unused point each time
+		while (!pts.isEmpty()) {
+			int bestIdx = 0;
+			double bestD2 = dist2(current, pts.get(0));
+			for (int i = 1; i < pts.size(); i++) {
+				double d2 = dist2(current, pts.get(i));
+				if (d2 < bestD2) {
+					bestD2 = d2;
+					bestIdx = i;
+				}
+			}
+			current = pts.remove(bestIdx);
+			ordered.add(current);
+		}
+
+		return ordered;
+	}
+
+	private static double dist2(Point2D.Double a, Point2D.Double b) {
+		double dx = a.x - b.x;
+		double dy = a.y - b.y;
+		return dx * dx + dy * dy;
+	}
 }

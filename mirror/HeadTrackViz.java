@@ -4,6 +4,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.Path2D;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 public class HeadTrackViz extends JPanel {
@@ -178,6 +179,18 @@ public class HeadTrackViz extends JPanel {
         private Path2D buildOrderedOutline(List<OutlinePoint> points) {
                 if (points.size() < 3)
                         return null;
+
+                double sumX = 0;
+                double sumY = 0;
+                for (OutlinePoint p : points) {
+                        sumX += p.x;
+                        sumY += p.y;
+                }
+
+                final double centerX = sumX / points.size();
+                final double centerY = sumY / points.size();
+
+                points.sort(Comparator.comparingDouble(p -> Math.atan2(p.y - centerY, p.x - centerX)));
 
                 Path2D path = new Path2D.Double();
                 OutlinePoint first = points.get(0);

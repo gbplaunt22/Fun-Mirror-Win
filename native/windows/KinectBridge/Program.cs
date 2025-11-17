@@ -17,7 +17,7 @@ namespace KinectBridge
         private static readonly int[] NeighborY = { 0, 1, 1, 1, 0, -1, -1, -1 };
 
         private static DepthImagePixel[] depthPixels;
-        private static bool[,] playerMask;
+        private static byte[] playerMask;
         private static readonly List<PixelPoint> OutlineScratch = new List<PixelPoint>(2048);
 
         private static volatile bool hasTrackedSkeleton = false;
@@ -67,6 +67,7 @@ namespace KinectBridge
             sensor.DepthStream.Enable(DepthFormat);
 
             depthPixels = new DepthImagePixel[sensor.DepthStream.FramePixelDataLength];
+            playerMask = new byte[depthPixels.Length];
 
             sensor.SkeletonFrameReady += Sensor_SkeletonFrameReady;
             sensor.DepthFrameReady += Sensor_DepthFrameReady;
@@ -171,8 +172,7 @@ namespace KinectBridge
                 }
 
                 frame.CopyDepthImagePixelDataTo(depthPixels);
-                EnsurePlayerMask(frame.Width, frame.Height);
-                BuildPlayerMask(depthPixels, playerMask, frame.Width, frame.Height);
+                BuildPlayerMask(depthPixels, playerMask);
 
                 int outlineCount = ExtractOutline(playerMask, depthPixels, frame.Width, frame.Height, OutlineScratch);
                 if (outlineCount > 0)
@@ -186,30 +186,15 @@ namespace KinectBridge
             }
         }
 
-        private static void EnsurePlayerMask(int width, int height)
+        private static void BuildPlayerMask(DepthImagePixel[] depthData, byte[] mask)
         {
-            if (playerMask != null && playerMask.GetLength(0) == height && playerMask.GetLength(1) == width)
+            for (int i = 0; i < depthData.Length; i++)
             {
-                return;
-            }
-
-            playerMask = new bool[height, width];
-        }
-
-        private static void BuildPlayerMask(DepthImagePixel[] depthData, bool[,] mask, int width, int height)
-        {
-            for (int y = 0; y < height; y++)
-            {
-                int row = y * width;
-                for (int x = 0; x < width; x++)
-                {
-                    int idx = row + x;
-                    mask[y, x] = depthData[idx].PlayerIndex > 0;
-                }
+                mask[i] = depthData[i].PlayerIndex > 0 ? (byte)1 : (byte)0;
             }
         }
 
-        private static int ExtractOutline(bool[,] mask, DepthImagePixel[] depth, int width, int height, List<PixelPoint> outline)
+        private static int ExtractOutline(byte[] mask, DepthImagePixel[] depth, int width, int height, List<PixelPoint> outline)
         {
             outline.Clear();
 
@@ -222,13 +207,15 @@ namespace KinectBridge
             return outline.Count;
         }
 
-        private static bool TryFindBoundaryPixel(bool[,] mask, int width, int height, out PixelPoint start)
+        private static bool TryFindBoundaryPixel(byte[] mask, int width, int height, out PixelPoint start)
         {
             for (int y = 0; y < height; y++)
             {
+                int row = y * width;
                 for (int x = 0; x < width; x++)
                 {
-                    if (mask[y, x] && IsBoundaryPixel(mask, width, height, x, y))
+                    int idx = row + x;
+                    if (mask[idx] != 0 && IsBoundaryPixel(mask, width, height, x, y))
                     {
                         start = new PixelPoint(x, y);
                         return true;
@@ -240,9 +227,10 @@ namespace KinectBridge
             return false;
         }
 
-        private static bool IsBoundaryPixel(bool[,] mask, int width, int height, int x, int y)
+        private static bool IsBoundaryPixel(byte[] mask, int width, int height, int x, int y)
         {
-            if (!mask[y, x])
+            int idx = y * width + x;
+            if (mask[idx] == 0)
             {
                 return false;
             }
@@ -268,7 +256,8 @@ namespace KinectBridge
                         return true;
                     }
 
-                    if (!mask[sampleY, sampleX])
+                    int sampleIdx = sampleY * width + sampleX;
+                    if (mask[sampleIdx] == 0)
                     {
                         return true;
                     }
@@ -278,7 +267,7 @@ namespace KinectBridge
             return false;
         }
 
-        private static void TraceContour(bool[,] mask, DepthImagePixel[] depth, int width, int height, PixelPoint start, List<PixelPoint> outline)
+        private static void TraceContour(byte[] mask, DepthImagePixel[] depth, int width, int height, PixelPoint start, List<PixelPoint> outline)
         {
             outline.Add(new PixelPoint(start.X, start.Y, SampleDepth(depth, width, start.X, start.Y)));
 
@@ -329,7 +318,7 @@ namespace KinectBridge
             return depth[idx].Depth;
         }
 
-        private static bool TryStep(bool[,] mask, int width, int height, PixelPoint current, int backtrackDir, out PixelPoint next, out int nextBacktrack)
+        private static bool TryStep(byte[] mask, int width, int height, PixelPoint current, int backtrackDir, out PixelPoint next, out int nextBacktrack)
         {
             // Moore-neighbor tracing searches starting two steps counter-
             // clockwise from the direction we entered the current pixel so
@@ -347,7 +336,8 @@ namespace KinectBridge
                     continue;
                 }
 
-                if (!mask[ny, nx])
+                int idx = ny * width + nx;
+                if (mask[idx] == 0)
                 {
                     continue;
                 }

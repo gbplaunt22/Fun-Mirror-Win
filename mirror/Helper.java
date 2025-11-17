@@ -1,5 +1,7 @@
 package mirror;
 
+//IF THIS POPS UP IN REPO FROM gbplaunt22, GIT AUTH HAS WORKED!
+
 public class Helper {
 	
 	//sleep helper method

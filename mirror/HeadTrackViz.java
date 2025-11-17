@@ -168,52 +168,62 @@ public class HeadTrackViz extends JPanel {
 		g2.setStroke(original);
 	}
 
-	private java.util.List<Point2D.Double> orderContourGreedy(int[] outline) {
-		int n = outline.length / 2;
-		java.util.List<Point2D.Double> pts = new java.util.ArrayList<>(n);
-		for (int i = 0; i < outline.length; i += 2) {
-			pts.add(new Point2D.Double(outline[i], outline[i + 1]));
-		}
+        private java.util.List<Point2D.Double> orderContourGreedy(int[] outline) {
+                int n = outline.length / 2;
+                java.util.List<Point2D.Double> pts = new java.util.ArrayList<>(n);
+                java.util.HashSet<Long> seen = new java.util.HashSet<>();
+                for (int i = 0; i < outline.length; i += 2) {
+                        int x = outline[i];
+                        int y = outline[i + 1];
+                        long key = (((long) x) << 32) ^ (y & 0xffffffffL);
+                        if (seen.add(key)) {
+                                pts.add(new Point2D.Double(x, y));
+                        }
+                }
 
-		// nothing to do
-		if (pts.size() < 3)
-			return pts;
+                if (pts.size() < 3)
+                        return pts;
 
-		// 1) choose starting point: smallest y, then smallest x
-		int startIdx = 0;
-		for (int i = 1; i < pts.size(); i++) {
-			Point2D.Double p = pts.get(i);
-			Point2D.Double best = pts.get(startIdx);
-			if (p.y < best.y || (p.y == best.y && p.x < best.x)) {
-				startIdx = i;
-			}
-		}
+                double centerX = 0;
+                double centerY = 0;
+                for (Point2D.Double p : pts) {
+                        centerX += p.x;
+                        centerY += p.y;
+                }
+                centerX /= pts.size();
+                centerY /= pts.size();
 
-		java.util.List<Point2D.Double> ordered = new java.util.ArrayList<>(n);
-		Point2D.Double current = pts.remove(startIdx);
-		ordered.add(current);
+                pts.sort((p1, p2) -> {
+                        double a1 = Math.atan2(p1.y - centerY, p1.x - centerX);
+                        double a2 = Math.atan2(p2.y - centerY, p2.x - centerX);
+                        if (a1 == a2) {
+                                double d1 = dist2(p1.x - centerX, p1.y - centerY);
+                                double d2 = dist2(p2.x - centerX, p2.y - centerY);
+                                return Double.compare(d1, d2);
+                        }
+                        return Double.compare(a1, a2);
+                });
 
-		// 2) walk to the nearest unused point each time
-		while (!pts.isEmpty()) {
-			int bestIdx = 0;
-			double bestD2 = dist2(current, pts.get(0));
-			for (int i = 1; i < pts.size(); i++) {
-				double d2 = dist2(current, pts.get(i));
-				if (d2 < bestD2) {
-					bestD2 = d2;
-					bestIdx = i;
-				}
-			}
-			current = pts.remove(bestIdx);
-			ordered.add(current);
-		}
+                int startIdx = 0;
+                for (int i = 1; i < pts.size(); i++) {
+                        Point2D.Double p = pts.get(i);
+                        Point2D.Double best = pts.get(startIdx);
+                        if (p.y < best.y || (p.y == best.y && p.x < best.x)) {
+                                startIdx = i;
+                        }
+                }
 
-		return ordered;
-	}
+                if (startIdx > 0) {
+                        java.util.List<Point2D.Double> rotated = new java.util.ArrayList<>(pts.size());
+                        rotated.addAll(pts.subList(startIdx, pts.size()));
+                        rotated.addAll(pts.subList(0, startIdx));
+                        pts = rotated;
+                }
 
-	private static double dist2(Point2D.Double a, Point2D.Double b) {
-		double dx = a.x - b.x;
-		double dy = a.y - b.y;
-		return dx * dx + dy * dy;
-	}
+                return pts;
+        }
+
+        private static double dist2(double dx, double dy) {
+                return dx * dx + dy * dy;
+        }
 }

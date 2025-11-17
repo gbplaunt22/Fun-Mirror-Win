@@ -3,3 +3,6 @@
 /Main.class
 /HeadTrackViz.class
 /HeadDataSource.class
+/HeadTrackViz$OutlinePoint.class
+/SilhouetteFrame$RunConsumer.class
+/SilhouetteFrame.class

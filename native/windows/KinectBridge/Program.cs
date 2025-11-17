@@ -342,6 +342,15 @@ namespace KinectBridge
                     continue;
                 }
 
+                // Only follow pixels that are also on the silhouette boundary.
+                // Without this check, the tracer can wander through the filled
+                // interior of the player mask, producing "scanline" bands
+                // instead of a continuous contour (as seen in the screenshot).
+                if (!IsBoundaryPixel(mask, width, height, nx, ny))
+                {
+                    continue;
+                }
+
                 next = new PixelPoint(nx, ny);
                 nextBacktrack = (dir + 4) & 7;
                 return true;

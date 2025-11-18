@@ -20,15 +20,76 @@ public class HeadTrackViz extends JPanel {
 	private static final int KINECT_HEIGHT = 480;
 
 	// calibration knobs
-	private double scaleX = 1.0;
-	private double scaleY = 1.0;
-	private double offsetX = 0.0; // in panel-width units
-	private double offsetY = 0.0; // in panel-height units
+	private double scaleX = 1.4;
+	private double scaleY = 1.4;
+	private double offsetX = -0.270; // in panel-width units
+	private double offsetY = -0.070; // in panel-height units
+	
 
 	// How strongly outline follows the head movement
 	private double parallaxFactor = 1.0;
-	
-	
+
+	// Distance in meters where the outline looks "correct" size
+	private double referenceZ = 1.3;
+
+	public void recalibrateReferenceZ() {
+		if (haveSmooth) {
+			referenceZ = smoothZ;
+			System.out.println("referenceZ set to " + referenceZ);
+		}
+	}
+
+	private double computeZScale() {
+		if (!haveSmooth) {
+			return 1.0;
+		}
+
+		double z = smoothZ;
+
+		// clamp to avoid insane values if tracking glitches
+		double minZ = 0.5;
+		double maxZ = 3.0;
+		if (z < minZ)
+			z = minZ;
+		if (z > maxZ)
+			z = maxZ;
+
+		// How strong should the Z effect be? 0.0 = off, 1.0 = very strong
+		double strength = 0.2;
+
+		// dz > 0 when you're closer than referenceZ, < 0 when farther.
+		double dz = referenceZ - z;
+
+		// Small correction around 1.0 instead of full referenceZ / z
+		double zScale = 1.0 + strength * (dz / referenceZ);
+
+		// Clamp so it never goes wild
+		if (zScale < 0.6)
+			zScale = 0.6;
+		if (zScale > 1.4)
+			zScale = 1.4;
+
+		return zScale;
+	}
+
+	// Scale a screen-space point around the panel center based on head Z.
+	private Point applyDepthScale(int baseX, int baseY, int panelW, int panelH) {
+		double zScale = computeZScale();
+		
+		int headX = mapXToPanel(smoothX, panelW);
+		int headY = mapYToPanel(smoothY, panelH);
+
+		//int cx = panelW / 2;
+		//int cy = panelH / 2;
+
+		double dx = baseX - headX;  //CHANGE HEADX TO CX
+		double dy = baseY - headY;  //CHANGE HEADY TO CY
+
+		int sx = (int) Math.round(headX + dx * zScale);  //headX TO CX
+		int sy = (int) Math.round(headY + dy * zScale);  //headY TO CY
+
+		return new Point(sx, sy);
+	}
 
 	public void setCalibration(double scaleX, double scaleY, double offsetX, double offsetY) {
 		this.scaleX = scaleX;
@@ -95,6 +156,10 @@ public class HeadTrackViz extends JPanel {
 		// draw raw marker
 		drawHeadMarker(g, drawRawX, drawRawY, rawZ, panelW, panelH);
 
+		// draw debug overlay
+		Graphics2D g2 = (Graphics2D) g;
+		drawDebugOverlay(g2, panelW, panelH);
+
 	}
 
 	private void updateSmoothing(int rawX, int rawY, double rawZ) {
@@ -140,10 +205,11 @@ public class HeadTrackViz extends JPanel {
 		g2.fillOval(cx, cy, d, d);
 
 		g2.setColor(Color.WHITE);
-		g2.drawString(String.format("Z=%.2f m", z), 10, 20);
+		g2.drawString(String.format("Z=%.2f m", z), 10, 200);
 	}
 
 	private void drawOutline(Graphics2D g2, int[] outline, int panelW, int panelH) {
+
 		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
 		// Use a semi-transparent stroke color for visibility
@@ -161,8 +227,12 @@ public class HeadTrackViz extends JPanel {
 			int baseX = mapXToPanel(outline[i], panelW);
 			int baseY = mapYToPanel(outline[i + 1], panelH);
 
-			// apply parallax translation
-			Point p = applyHeadParallax(baseX, baseY, panelW, panelH);
+			// scale based on head Z (Closer = bigger, farther = smaller)
+			Point depthScaled = applyDepthScale(baseX, baseY, panelW, panelH);
+
+			// apply head-based parallax translation
+			Point p = applyHeadParallax(depthScaled.x, depthScaled.y, panelW, panelH);
+
 			int panelX = p.x;
 			int panelY = p.y;
 
@@ -312,6 +382,36 @@ public class HeadTrackViz extends JPanel {
 				adjustScaleY(-0.05);
 			}
 		});
+	}
+
+	// Draw calibration/debug info on screen
+	private void drawDebugOverlay(Graphics2D g2, int panelW, int panelH) {
+		g2.setColor(Color.YELLOW);
+		g2.setFont(g2.getFont().deriveFont(12f));
+
+		int y = 20;
+
+		// Offsets
+		g2.drawString(String.format("offsetX=%.3f  offsetY=%.3f", offsetX, offsetY), 10, y);
+		y += 15;
+
+		// Scales
+		g2.drawString(String.format("scaleX=%.3f  scaleY=%.3f", scaleX, scaleY), 10, y);
+		y += 15;
+
+		// Head position (smoothed)
+		g2.drawString(String.format("smoothX=%.1f  smoothY=%.1f", smoothX, smoothY), 10, y);
+		y += 15;
+
+		// Depth & depth scale
+		if (haveSmooth) {
+			double zScale = computeZScale();
+			g2.drawString(String.format("Z=%.2f m  zScale=%.2f", smoothZ, zScale), 10, y);
+			y += 15;
+		}
+
+		// Parallax + referenceZ for completeness
+		g2.drawString(String.format("parallaxFactor=%.2f  referenceZ=%.2f", parallaxFactor, referenceZ), 10, y);
 	}
 
 }

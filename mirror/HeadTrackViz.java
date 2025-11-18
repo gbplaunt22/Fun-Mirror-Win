@@ -215,6 +215,8 @@ public class HeadTrackViz extends JPanel {
 	private void drawOutline(Graphics2D g2, int[] outline, int panelW, int panelH) {
 
 		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+		
+		
 
 		// Use a semi-transparent stroke color for visibility
 		g2.setColor(new Color(0, 200, 255, 180));
@@ -244,7 +246,9 @@ public class HeadTrackViz extends JPanel {
 			if (panelX + half < 0 || panelX - half > panelW || panelY + half < 0 || panelY - half > panelH)
 				continue;
 
-			g2.fillRect(panelX - half, panelY - half, pointSize, pointSize);
+			
+			final int pointRadius = 2;
+			g2.fillOval(panelX - pointRadius, panelY - pointRadius, pointSize * 2, pointSize * 2);
 
 			// Translation for parallax effect
 

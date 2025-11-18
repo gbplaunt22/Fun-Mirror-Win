@@ -156,9 +156,9 @@ public class HeadTrackViz extends JPanel {
 		}
 
 		// draw marker
-		drawHeadMarker(g, drawX, drawY, smoothZ, panelW, panelH);
+		//drawHeadMarker(g, drawX, drawY, smoothZ, panelW, panelH);
 		// draw raw marker
-		drawHeadMarker(g, drawRawX, drawRawY, rawZ, panelW, panelH);
+		//drawHeadMarker(g, drawRawX, drawRawY, rawZ, panelW, panelH);
 
 		// draw debug overlay
 		Graphics2D g2 = (Graphics2D) g;

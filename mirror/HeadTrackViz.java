@@ -101,7 +101,11 @@ public class HeadTrackViz extends JPanel {
 	// constructor takes a HeadDataSource to get head tracking data from
 	public HeadTrackViz(HeadDataSource headSource) {
 		this.headSource = headSource;
-		setBackground(Color.BLACK);
+		
+		// Transparent panel - dont fill background
+		setOpaque(false);
+		//setBackground(Color.BLACK);
+		setBackground(new Color(0,0,0,0));
 
 		setupCalibrationKeyBindings();
 	}

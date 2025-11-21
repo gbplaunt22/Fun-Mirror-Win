@@ -2,4 +2,9 @@
 
 Fun-Mirror v0.2 for Windows instead of Linux.
 
-# THIS README NEEDS TO BE FILLED!!!
+Also, this repo uses the MagicMirror project as the default asthetic for the "Smart Mirror" https://magicmirror.builders/ . Kudos!
+
+I plan to update this ReadMe btw!
+
+
+
